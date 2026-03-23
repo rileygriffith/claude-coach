@@ -159,7 +159,6 @@ async function loadActivities() {
     `).join('');
 
     document.getElementById('generate-btn').disabled = false;
-    document.querySelector('.generate-section').hidden = !!localStorage.getItem('lastWorkouts');
   } catch (err) {
     grid.innerHTML = `<div class="state-error">Failed to load activities: ${err.message}</div>`;
   }
@@ -180,16 +179,27 @@ async function generateWorkout() {
   document.getElementById('confirmed-section').hidden = true;
 
   try {
-    const res = await fetch('/api/generate-workout', { method: 'POST' });
+    const goal = localStorage.getItem('userGoal') || '';
+    const res = await fetch('/api/generate-workout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal, units: useImperial ? 'miles' : 'km' }),
+    });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Unknown error');
 
-    currentWorkouts = data;
+    const { workouts, cost, input_tokens, output_tokens } = data;
+    currentWorkouts = workouts;
     localStorage.setItem('lastWorkouts', JSON.stringify({
-      workouts: data,
+      workouts,
       latestRun: allRuns.length ? allRuns[0].date : null,
     }));
-    renderWorkouts(data);
+    renderWorkouts(workouts);
+
+    document.getElementById('cost-display').textContent =
+      `$${cost.toFixed(4)} · ${input_tokens} in / ${output_tokens} out`;
+    document.getElementById('cost-display').hidden = false;
+
     document.getElementById('workouts-section').hidden = false;
     document.getElementById('workouts-section').scrollIntoView({ behavior: 'smooth' });
   } catch (err) {
@@ -265,6 +275,22 @@ if (saved) {
     document.querySelector('.generate-section').hidden = true;
   } catch (_) { localStorage.removeItem('lastWorkouts'); }
 }
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+const settingsPanel = document.getElementById('settings-panel');
+const goalInput     = document.getElementById('goal-input');
+
+document.getElementById('settings-btn').addEventListener('click', () => {
+  settingsPanel.hidden = !settingsPanel.hidden;
+});
+
+goalInput.value = localStorage.getItem('userGoal') || '';
+goalInput.addEventListener('input', () => {
+  localStorage.setItem('userGoal', goalInput.value.trim());
+});
+
+// ── Unit toggle ───────────────────────────────────────────────────────────────
 
 document.getElementById('unit-km').addEventListener('click', () => {
   useImperial = false;

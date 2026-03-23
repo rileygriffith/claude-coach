@@ -202,7 +202,7 @@ async function getActivities() {
   }
 
   const runs = allActivities
-    .filter((a) => a.type === 'Run' || a.sport_type === 'Run')
+    .filter((a) => ['Run', 'TrailRun', 'VirtualRun', 'Treadmill'].includes(a.sport_type || a.type))
     .map((a) => ({
       name: a.name,
       date: a.start_date_local,
@@ -215,10 +215,13 @@ async function getActivities() {
       total_elevation_gain: a.total_elevation_gain || 0,
     }));
 
+  runs.sort((a, b) => new Date(b.date) - new Date(a.date));
+
   cachedActivities = runs;
   activitiesCachedAt = Date.now();
   return runs;
 }
+
 
 // GET /api/activities — fetch and filter runs from Strava (cached 6h)
 app.get('/api/activities', async (_req, res) => {
@@ -231,14 +234,20 @@ app.get('/api/activities', async (_req, res) => {
 });
 
 // POST /api/generate-workout — call Claude to generate 3 workout options
-app.post('/api/generate-workout', async (_req, res) => {
+app.post('/api/generate-workout', async (req, res) => {
   try {
     const runs = await getActivities();
     if (!runs.length) {
       return res.status(400).json({ error: 'No runs found on Strava.' });
     }
 
+    const { goal, units = 'miles' } = req.body || {};
+    const isImperial = units === 'miles';
     const runSummary = buildRunSummary(runs);
+    const goalSection = goal ? `\nMy current training goal: ${goal}\n` : '';
+    const unitInstruction = isImperial
+      ? 'All distances and paces must be in miles and min/mi.'
+      : 'All distances and paces must be in kilometers and min/km.';
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -247,8 +256,8 @@ app.post('/api/generate-workout', async (_req, res) => {
       messages: [
         {
           role: 'user',
-          content: `Here are my recent runs:\n${runSummary}\n\n` +
-            `All distances and paces must be in miles and min/mi. ` +
+          content: `Here are my recent runs:\n${runSummary}\n${goalSection}\n` +
+            `${unitInstruction} ` +
             `Based on this training history, generate 3 workout options for my next session. ` +
             `All 3 should represent roughly the same training load and difficulty — they are alternatives to each other, not progressions. ` +
             `Vary the workout type to offer variety (e.g. tempo, intervals, steady-state, fartlek, long run, etc.). ` +
@@ -268,7 +277,11 @@ app.post('/api/generate-workout', async (_req, res) => {
     if (!jsonMatch) throw new Error('Claude response contained no JSON');
     const workouts = JSON.parse(jsonMatch[0]);
 
-    res.json(workouts);
+    // Sonnet 4.6 pricing: $3/M input, $15/M output
+    const { input_tokens, output_tokens } = message.usage;
+    const cost = (input_tokens / 1_000_000) * 3 + (output_tokens / 1_000_000) * 15;
+
+    res.json({ workouts, cost, input_tokens, output_tokens });
   } catch (err) {
     console.error('[/api/generate-workout]', err);
     res.status(500).json({ error: err.message });

@@ -44,6 +44,77 @@ header {
   gap: 1rem;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.settings-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.settings-btn:hover { color: var(--text); border-color: var(--text-muted); }
+
+.settings-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+}
+
+.settings-field label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+}
+
+.goal-input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.5;
+  padding: 0.6rem 0.75rem;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+
+.goal-input:focus { outline: none; border-color: var(--blue); }
+
+.workouts-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.workouts-header .section-label { margin-bottom: 0; }
+
+.cost-display {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
 .unit-toggle {
   display: flex;
   gap: 2px;
@@ -104,6 +175,9 @@ header {
   color: var(--text-muted);
   margin-bottom: 1rem;
 }
+
+#workouts-section > .workouts-header { margin-bottom: 1rem; }
+#workouts-section > .workouts-header .section-label { margin-bottom: 0; }
 
 /* ── Run cards ───────────────────────────────────────────────────────────────── */
 .runs-grid {
