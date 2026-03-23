@@ -276,6 +276,40 @@ if (saved) {
   } catch (_) { localStorage.removeItem('lastWorkouts'); }
 }
 
+// ── Prompt preview ────────────────────────────────────────────────────────────
+
+const promptPreviewBtn = document.getElementById('prompt-preview-btn');
+const promptPreviewEl  = document.getElementById('prompt-preview');
+let promptLoaded = false;
+
+promptPreviewBtn.addEventListener('click', async () => {
+  const open = !promptPreviewEl.hidden;
+  if (open) {
+    promptPreviewEl.hidden = true;
+    promptPreviewBtn.textContent = '▶ Preview prompt';
+    return;
+  }
+  promptPreviewBtn.textContent = '▼ Preview prompt';
+  if (!promptLoaded) {
+    promptPreviewEl.textContent = 'Loading…';
+    promptPreviewEl.hidden = false;
+    try {
+      const res = await fetch('/api/prompt-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal: localStorage.getItem('userGoal') || '', units: useImperial ? 'miles' : 'km' }),
+      });
+      const data = await res.json();
+      promptPreviewEl.textContent = data.prompt;
+      promptLoaded = true;
+    } catch (err) {
+      promptPreviewEl.textContent = 'Failed to load preview: ' + err.message;
+    }
+  } else {
+    promptPreviewEl.hidden = false;
+  }
+});
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 
 const settingsPanel = document.getElementById('settings-panel');
@@ -288,12 +322,14 @@ document.getElementById('settings-btn').addEventListener('click', () => {
 goalInput.value = localStorage.getItem('userGoal') || '';
 goalInput.addEventListener('input', () => {
   localStorage.setItem('userGoal', goalInput.value.trim());
+  promptLoaded = false;
 });
 
 // ── Unit toggle ───────────────────────────────────────────────────────────────
 
 document.getElementById('unit-km').addEventListener('click', () => {
   useImperial = false;
+  promptLoaded = false;
   document.getElementById('unit-km').classList.add('active');
   document.getElementById('unit-mi').classList.remove('active');
   if (allRuns.length) loadActivities();
@@ -301,6 +337,7 @@ document.getElementById('unit-km').addEventListener('click', () => {
 
 document.getElementById('unit-mi').addEventListener('click', () => {
   useImperial = true;
+  promptLoaded = false;
   document.getElementById('unit-mi').classList.add('active');
   document.getElementById('unit-km').classList.remove('active');
   if (allRuns.length) loadActivities();

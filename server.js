@@ -233,6 +233,55 @@ app.get('/api/activities', async (_req, res) => {
   }
 });
 
+// POST /api/prompt-preview — return the exact prompt that would be sent to Claude
+app.post('/api/prompt-preview', requireAuth, async (req, res) => {
+  try {
+    const runs = await getActivities();
+    const { goal, units = 'miles' } = req.body || {};
+    const isImperial = units === 'miles';
+    const runSummary = runs.length ? buildRunSummary(runs) : '(no runs found)';
+    const goalSection = goal ? `\nMy current training goal: ${goal}\n` : '';
+    const unitInstruction = isImperial
+      ? 'All distances and paces must be in miles and min/mi.'
+      : 'All distances and paces must be in kilometers and min/km.';
+
+    const prompt =
+      `[System prompt]\n${COACHING_SYSTEM_PROMPT}\n\n` +
+      `[User message]\n` +
+      `Here are my recent runs:\n${runSummary}\n${goalSection}\n` +
+      `${unitInstruction} ` +
+      `Based on this training history, generate 3 workout options for my next session. ` +
+      `All 3 should represent roughly the same training load and difficulty — they are alternatives to each other, not progressions. ` +
+      `Vary the workout type to offer variety (e.g. tempo, intervals, steady-state, fartlek, long run, etc.). ` +
+      `For each option provide specific, concrete targets the athlete should hit — exact paces, distances, rep structures, rest intervals, etc. Be precise, not vague.\n\n` +
+      `Respond ONLY with valid JSON in exactly this format:\n` +
+      `{\n` +
+      `  "option_a": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" },\n` +
+      `  "option_b": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" },\n` +
+      `  "option_c": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" }\n` +
+      `}`;
+
+    res.json({ prompt, run_count: runs.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/raw-activity — returns the raw Strava object for the most recent run
+app.get('/api/raw-activity', requireAuth, async (_req, res) => {
+  try {
+    const token = await getStravaToken();
+    const response = await fetch(
+      'https://www.strava.com/api/v3/athlete/activities?per_page=1',
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const data = await response.json();
+    res.json(data[0] || {});
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/generate-workout — call Claude to generate 3 workout options
 app.post('/api/generate-workout', async (req, res) => {
   try {
