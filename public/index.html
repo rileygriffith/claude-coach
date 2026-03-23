@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Running Coach</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+
+    <header>
+      <div class="logo">Running Coach</div>
+      <div class="subtitle">AI-powered training recommendations</div>
+    </header>
+
+    <!-- Recent runs -->
+    <section class="section">
+      <h2 class="section-label">Recent Runs</h2>
+      <div id="runs-grid" class="runs-grid">
+        <div class="state-msg">Loading your runs…</div>
+      </div>
+    </section>
+
+    <!-- Generate button -->
+    <section class="section generate-section">
+      <button id="generate-btn" class="generate-btn" disabled>
+        <span id="btn-text">Generate Workout</span>
+        <span id="btn-loading" hidden>Analyzing your training…</span>
+      </button>
+    </section>
+
+    <!-- Workout options -->
+    <section id="workouts-section" class="section" hidden>
+      <h2 class="section-label">Today's Options</h2>
+      <div id="workouts-grid" class="workouts-grid"></div>
+    </section>
+
+    <!-- Confirmed session -->
+    <section id="confirmed-section" class="section" hidden>
+      <h2 class="section-label">Today's Session</h2>
+      <div id="confirmed-card" class="confirmed-card"></div>
+    </section>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

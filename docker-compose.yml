@@ -1,0 +1,11 @@
+services:
+  running-coach:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    volumes:
+      # Persist logged workouts outside the container
+      - ./workouts.json:/app/workouts.json
+    restart: unless-stopped
