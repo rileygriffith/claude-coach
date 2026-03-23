@@ -1,7 +1,15 @@
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
+let useImperial = true;
+
 function formatPace(speedMs) {
   if (!speedMs || speedMs <= 0) return '—';
+  if (useImperial) {
+    const secsPerMile = 1609.34 / speedMs;
+    const mins = Math.floor(secsPerMile / 60);
+    const secs = Math.round(secsPerMile % 60);
+    return `${mins}:${String(secs).padStart(2, '0')} /mi`;
+  }
   const secsPerKm = 1000 / speedMs;
   const mins = Math.floor(secsPerKm / 60);
   const secs = Math.round(secsPerKm % 60);
@@ -9,7 +17,51 @@ function formatPace(speedMs) {
 }
 
 function formatDistance(meters) {
+  if (useImperial) return (meters / 1609.34).toFixed(2);
   return (meters / 1000).toFixed(2);
+}
+
+function unitLabel() {
+  return useImperial ? 'mi' : 'km';
+}
+
+function renderCalendar(runs) {
+  const runDates = new Set(runs.map((r) => r.date.slice(0, 10)));
+
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+
+  const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthName = today.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    .map((d) => `<div class="cal-day-label">${d}</div>`)
+    .join('');
+
+  const blanks = Array.from({ length: firstDay }, () => '<div class="cal-cell empty"></div>').join('');
+
+  const todayStr = today.toISOString().slice(0, 10);
+  const cells = Array.from({ length: daysInMonth }, (_, i) => {
+    const d = i + 1;
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const hasRun = runDates.has(dateStr);
+    const isToday = dateStr === todayStr;
+    let cls = 'cal-cell';
+    if (hasRun) cls += ' has-run';
+    if (isToday) cls += ' today';
+    return `<div class="${cls}"><span class="cal-day-num">${d}</span>${hasRun ? '<span class="cal-dot"></span>' : ''}</div>`;
+  }).join('');
+
+  document.getElementById('calendar').innerHTML = `
+    <div class="cal-month-label">${monthName}</div>
+    <div class="cal-grid">
+      ${dayLabels}
+      ${blanks}
+      ${cells}
+    </div>
+  `;
 }
 
 function formatDate(dateStr) {
@@ -48,6 +100,7 @@ async function loadActivities() {
     }
 
     allRuns = data;
+    renderCalendar(data);
     const recent = data.slice(0, 5);
 
     grid.innerHTML = recent.map((run) => `
@@ -55,7 +108,7 @@ async function loadActivities() {
         <div class="run-date">${formatDate(run.date)}</div>
         <div>
           <span class="run-distance">${formatDistance(run.distance)}</span>
-          <span class="run-unit">km</span>
+          <span class="run-unit">${unitLabel()}</span>
         </div>
         <div class="run-stats">
           <div>
@@ -190,5 +243,23 @@ async function selectWorkout(type) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
+const todayLabel = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+document.getElementById('btn-text').textContent = `Generate Workout for ${todayLabel}`;
+
 document.getElementById('generate-btn').addEventListener('click', generateWorkout);
+
+document.getElementById('unit-km').addEventListener('click', () => {
+  useImperial = false;
+  document.getElementById('unit-km').classList.add('active');
+  document.getElementById('unit-mi').classList.remove('active');
+  if (allRuns.length) loadActivities();
+});
+
+document.getElementById('unit-mi').addEventListener('click', () => {
+  useImperial = true;
+  document.getElementById('unit-mi').classList.add('active');
+  document.getElementById('unit-km').classList.remove('active');
+  if (allRuns.length) loadActivities();
+});
+
 loadActivities();
