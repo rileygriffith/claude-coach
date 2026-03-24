@@ -549,12 +549,7 @@ async function loadSettings() {
   raceDistanceInput.value = data.race_distance || '';
   raceDistanceInput.addEventListener('change', () => saveSetting('race_distance', raceDistanceInput.value));
 
-  flatpickr(raceDateInput, {
-    dateFormat: 'Y-m-d',
-    defaultDate: data.race_date || null,
-    minDate: 'today',
-    onChange: ([date]) => saveSetting('race_date', date ? date.toISOString().slice(0, 10) : ''),
-  });
+  initDatePicker(raceDateInput, data.race_date || '', (val) => saveSetting('race_date', val));
 
   // ── Credentials (write-only — never populate values for security) ─────────
   function wireCredential(id, key) {
@@ -605,6 +600,86 @@ async function loadSettings() {
     syncMsg.hidden = false;
     if (res.ok) loadActivities();
   });
+}
+
+// ── Date picker ───────────────────────────────────────────────────────────────
+
+function initDatePicker(input, initialValue, onChange) {
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const DAYS   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+  let selected = initialValue ? new Date(initialValue + 'T00:00:00') : null;
+  let viewing  = selected ? new Date(selected) : new Date();
+  viewing.setDate(1);
+
+  input.value = selected ? selected.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  input.readOnly = true;
+  input.style.cursor = 'pointer';
+
+  const popup = document.createElement('div');
+  popup.className = 'datepicker-popup';
+  popup.hidden = true;
+  document.body.appendChild(popup);
+
+  function render() {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const y = viewing.getFullYear(), m = viewing.getMonth();
+    const firstDay = new Date(y, m, 1).getDay();
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+
+    let cells = '';
+    for (let i = 0; i < firstDay; i++) cells += '<div></div>';
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(y, m, d);
+      const isPast = date < today;
+      const isSel  = selected && date.toDateString() === selected.toDateString();
+      cells += `<div class="dp-day${isSel ? ' dp-selected' : ''}${isPast ? ' dp-past' : ''}" data-d="${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}">${d}</div>`;
+    }
+
+    popup.innerHTML = `
+      <div class="dp-header">
+        <button class="dp-nav" data-dir="-1">‹</button>
+        <span class="dp-month">${MONTHS[m]} ${y}</span>
+        <button class="dp-nav" data-dir="1">›</button>
+      </div>
+      <div class="dp-grid-head">${DAYS.map(d => `<div>${d}</div>`).join('')}</div>
+      <div class="dp-grid">${cells}</div>
+    `;
+
+    popup.querySelectorAll('.dp-nav').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        viewing.setMonth(viewing.getMonth() + parseInt(btn.dataset.dir));
+        render();
+      });
+    });
+
+    popup.querySelectorAll('.dp-day:not(.dp-past)').forEach(cell => {
+      cell.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selected = new Date(cell.dataset.d + 'T00:00:00');
+        input.value = selected.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        onChange(cell.dataset.d);
+        popup.hidden = true;
+        render();
+      });
+    });
+  }
+
+  function position() {
+    const r = input.getBoundingClientRect();
+    popup.style.top  = `${r.bottom + window.scrollY + 4}px`;
+    popup.style.left = `${r.left + window.scrollX}px`;
+  }
+
+  input.addEventListener('click', (e) => {
+    e.stopPropagation();
+    render();
+    position();
+    popup.hidden = !popup.hidden;
+  });
+
+  document.addEventListener('click', () => { popup.hidden = true; });
 }
 
 // ── Unit toggle ───────────────────────────────────────────────────────────────

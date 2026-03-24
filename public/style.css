@@ -673,6 +673,58 @@ header {
 
 .modal-backdrop[hidden] { display: none; }
 
+/* ── Date picker ─────────────────────────────────────────────────── */
+.datepicker-popup {
+  position: absolute;
+  z-index: 200;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  width: 240px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.dp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.dp-month { font-size: 0.85rem; font-weight: 600; }
+.dp-nav {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  line-height: 1;
+}
+.dp-nav:hover { color: var(--text); }
+.dp-grid-head, .dp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.dp-grid-head { margin-bottom: 2px; }
+.dp-grid-head div {
+  font-size: 0.65rem;
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2px 0;
+}
+.dp-day {
+  font-size: 0.78rem;
+  text-align: center;
+  padding: 4px 2px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.dp-day:hover { background: var(--border); }
+.dp-day.dp-selected { background: var(--accent); color: #000; font-weight: 600; }
+.dp-day.dp-past { color: var(--text-muted); cursor: default; opacity: 0.4; }
+.dp-day.dp-past:hover { background: none; }
+
 .modal-card {
   background: var(--surface);
   border: 1px solid var(--border);
