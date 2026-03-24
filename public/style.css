@@ -74,8 +74,58 @@ header {
   padding: 1.25rem 1.5rem;
 }
 
-.settings-field { margin-bottom: 1.5rem; }
+.settings-group {
+  margin-bottom: 1.75rem;
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.settings-group:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+
+.settings-group-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.settings-field { margin-bottom: 1rem; }
 .settings-field:last-child { margin-bottom: 0; }
+
+.settings-row { display: flex; gap: 1rem; }
+.settings-row > div { flex: 1; }
+
+.settings-input, .settings-select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+  padding: 0.5rem 0.75rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.settings-input:focus, .settings-select:focus { border-color: var(--accent); }
+
+.settings-action-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  margin-top: 0.25rem;
+}
+.settings-action-btn:hover { border-color: var(--accent); }
+
+.settings-msg {
+  font-size: 0.82rem;
+  margin-top: 0.5rem;
+}
 .settings-field label {
   display: block;
   font-size: 0.75rem;

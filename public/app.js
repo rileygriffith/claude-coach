@@ -524,6 +524,87 @@ async function loadSettings() {
     clearTimeout(goalTimer);
     goalTimer = setTimeout(() => saveSetting('goal', goalInput.value.trim()), 600);
   });
+
+  // ── Cross-training input ──────────────────────────────────────────────────
+  const crossInput = document.getElementById('cross-training-input');
+  crossInput.value = data.cross_training || '';
+  let crossTimer;
+  crossInput.addEventListener('input', () => {
+    clearTimeout(crossTimer);
+    crossTimer = setTimeout(() => saveSetting('cross_training', crossInput.value.trim()), 600);
+  });
+
+  // ── Injury notes ──────────────────────────────────────────────────────────
+  const injuryInput = document.getElementById('injury-notes-input');
+  injuryInput.value = data.injury_notes || '';
+  let injuryTimer;
+  injuryInput.addEventListener('input', () => {
+    clearTimeout(injuryTimer);
+    injuryTimer = setTimeout(() => saveSetting('injury_notes', injuryInput.value.trim()), 600);
+  });
+
+  // ── Race target ───────────────────────────────────────────────────────────
+  const raceDistanceInput = document.getElementById('race-distance-input');
+  const raceDateInput = document.getElementById('race-date-input');
+  raceDistanceInput.value = data.race_distance || '';
+  raceDistanceInput.addEventListener('change', () => saveSetting('race_distance', raceDistanceInput.value));
+
+  flatpickr(raceDateInput, {
+    dateFormat: 'Y-m-d',
+    defaultDate: data.race_date || null,
+    minDate: 'today',
+    onChange: ([date]) => saveSetting('race_date', date ? date.toISOString().slice(0, 10) : ''),
+  });
+
+  // ── Credentials (write-only — never populate values for security) ─────────
+  function wireCredential(id, key) {
+    const el = document.getElementById(id);
+    let t;
+    el.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => { if (el.value) saveSetting(key, el.value.trim()); }, 800);
+    });
+  }
+  wireCredential('anthropic-key-input',        'anthropic_api_key');
+  wireCredential('strava-client-id-input',     'strava_client_id');
+  wireCredential('strava-client-secret-input', 'strava_client_secret');
+  wireCredential('strava-refresh-token-input', 'strava_refresh_token');
+
+  // ── Password change ───────────────────────────────────────────────────────
+  document.getElementById('change-password-btn').addEventListener('click', async () => {
+    const current = document.getElementById('current-password-input').value;
+    const next    = document.getElementById('new-password-input').value;
+    const msg     = document.getElementById('change-password-msg');
+    const res = await fetch('/api/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current, next }),
+    });
+    const data = await res.json();
+    msg.textContent = res.ok ? 'Password updated.' : (data.error || 'Failed.');
+    msg.style.color = res.ok ? 'var(--accent)' : 'var(--text-muted)';
+    msg.hidden = false;
+    if (res.ok) {
+      document.getElementById('current-password-input').value = '';
+      document.getElementById('new-password-input').value = '';
+    }
+  });
+
+  // ── Manual sync ───────────────────────────────────────────────────────────
+  const syncBtn = document.getElementById('sync-btn');
+  const syncMsg = document.getElementById('sync-msg');
+  syncBtn.addEventListener('click', async () => {
+    syncBtn.disabled = true;
+    syncBtn.textContent = 'Syncing…';
+    syncMsg.hidden = true;
+    const res = await fetch('/api/sync', { method: 'POST' });
+    syncBtn.disabled = false;
+    syncBtn.textContent = 'Sync from Strava now';
+    syncMsg.textContent = res.ok ? 'Sync complete.' : 'Sync failed — check Strava credentials.';
+    syncMsg.style.color = res.ok ? 'var(--accent)' : 'var(--text-muted)';
+    syncMsg.hidden = false;
+    if (res.ok) loadActivities();
+  });
 }
 
 // ── Unit toggle ───────────────────────────────────────────────────────────────

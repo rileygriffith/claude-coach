@@ -136,7 +136,8 @@ app.get('/login', (req, res) => {
 });
 
 app.post('/login', (req, res) => {
-  if (req.body.password === process.env.APP_PASSWORD) {
+  const activePassword = getSetting('app_password', '') || process.env.APP_PASSWORD;
+  if (req.body.password === activePassword) {
     req.session.authenticated = true;
     res.redirect('/');
   } else {
@@ -151,22 +152,34 @@ app.post('/logout', (req, res) => {
 app.use(requireAuth);
 app.use(express.static(path.join(__dirname, 'public')));
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+function getAnthropicClient() {
+  const key = getSetting('anthropic_api_key', '') || process.env.ANTHROPIC_API_KEY;
+  return new Anthropic({ apiKey: key });
+}
 
 // ── Strava token ───────────────────────────────────────────────────────────────
 
 let cachedToken  = null;
 let tokenExpiry  = 0;
 
+function getStravaCreds() {
+  return {
+    clientId:     getSetting('strava_client_id',     '') || process.env.STRAVA_CLIENT_ID,
+    clientSecret: getSetting('strava_client_secret', '') || process.env.STRAVA_CLIENT_SECRET,
+    refreshToken: getSetting('strava_refresh_token', '') || process.env.STRAVA_REFRESH_TOKEN,
+  };
+}
+
 async function getStravaToken() {
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
+  const { clientId, clientSecret, refreshToken } = getStravaCreds();
   const res = await fetch('https://www.strava.com/oauth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      client_id:     process.env.STRAVA_CLIENT_ID,
-      client_secret: process.env.STRAVA_CLIENT_SECRET,
-      refresh_token: process.env.STRAVA_REFRESH_TOKEN,
+      client_id:     clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
       grant_type:    'refresh_token',
     }),
   });
@@ -278,17 +291,31 @@ function buildPromptContent(runs, units = 'miles', soreness = 'none') {
   const unitInstruction = units === 'miles'
     ? 'All distances and paces must be in miles and min/mi.'
     : 'All distances and paces must be in kilometers and min/km.';
+  const crossTraining = getSetting('cross_training', '');
+  const injuryNotes   = getSetting('injury_notes',   '');
+  const raceDistance  = getSetting('race_distance',  '');
+  const raceDate      = getSetting('race_date',      '');
+
   const goalSection = goal
     ? `\n\n━━━ ATHLETE'S CURRENT GOAL ━━━\n${goal}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
     : '';
-
+  const crossTrainingSection = crossTraining
+    ? `\n\n━━━ CROSS-TRAINING CONTEXT ━━━\n${crossTraining}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
+    : '';
+  const raceSection = (raceDistance && raceDate)
+    ? `\n\n━━━ UPCOMING RACE ━━━\n${raceDistance} on ${raceDate}\n━━━━━━━━━━━━━━━━━━━━━\n`
+    : raceDistance
+    ? `\n\n━━━ UPCOMING RACE ━━━\n${raceDistance} (date TBD)\n━━━━━━━━━━━━━━━━━━━━━\n`
+    : '';
+  const injurySection = injuryNotes
+    ? `\n\n━━━ INJURY / HEALTH NOTES ━━━\n${injuryNotes}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
+    : '';
   const sorenessSection = soreness !== 'none'
     ? `\n\nNote: The athlete is reporting ${soreness} lower body soreness today. Adjust workout intensity and type accordingly.`
     : '';
 
-
   return (
-    `Here are my recent runs:\n${runSummary}${goalSection}${sorenessSection}\n\n` +
+    `Here are my recent runs:\n${runSummary}${goalSection}${raceSection}${crossTrainingSection}${injurySection}${sorenessSection}\n\n` +
     `${unitInstruction} ` +
     `Based on this training history, generate one recommended option for the athlete's next session, plus two alternatives. ` +
     `You are a coach first — if the training load, recovery signals, or reported soreness suggest the athlete needs rest, recommend a rest day (type: "Rest Day", structure: ["Full rest or light walking only"], target_pace: "N/A"). ` +
@@ -316,11 +343,35 @@ app.get('/api/settings', (_req, res) => {
 });
 
 app.post('/api/settings', (req, res) => {
-  const ALLOWED = ['goal'];
+  const ALLOWED = ['goal', 'cross_training', 'injury_notes', 'race_distance', 'race_date',
+                   'anthropic_api_key', 'strava_client_id', 'strava_client_secret', 'strava_refresh_token'];
   const { key, value } = req.body;
   if (!ALLOWED.includes(key)) return res.status(400).json({ error: 'Invalid setting key' });
   setSetting(key, value);
+  // Invalidate Strava token cache if credentials changed
+  if (['strava_client_id', 'strava_client_secret', 'strava_refresh_token'].includes(key)) {
+    cachedToken = null; tokenExpiry = 0;
+  }
   res.json({ ok: true });
+});
+
+app.post('/api/change-password', (req, res) => {
+  const { current, next } = req.body;
+  const active = getSetting('app_password', '') || process.env.APP_PASSWORD;
+  if (current !== active) return res.status(401).json({ error: 'Current password incorrect' });
+  if (!next || next.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  setSetting('app_password', next);
+  res.json({ ok: true });
+});
+
+app.post('/api/sync', async (_req, res) => {
+  try {
+    setSetting('last_synced_at', '0'); // reset TTL to force sync
+    await syncFromStrava();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Activities API ─────────────────────────────────────────────────────────────
@@ -341,7 +392,7 @@ app.post('/api/cost-estimate', async (req, res) => {
     const runs = await getActivities();
     const { units = 'miles' } = req.body || {};
     const promptContent = buildPromptContent(runs, units);
-    const { input_tokens } = await anthropic.messages.countTokens({
+    const { input_tokens } = await getAnthropicClient().messages.countTokens({
       model: 'claude-sonnet-4-6',
       system: COACHING_PROMPT,
       messages: [{ role: 'user', content: promptContent }],
@@ -379,7 +430,7 @@ app.post('/api/generate-workout', async (req, res) => {
     if (!runs.length) return res.status(400).json({ error: 'No runs found on Strava.' });
 
     const { units = 'miles', soreness = 'none' } = req.body || {};
-    const message = await anthropic.messages.create({
+    const message = await getAnthropicClient().messages.create({
       model:      'claude-sonnet-4-6',
       max_tokens: 1024,
       system:     COACHING_PROMPT,

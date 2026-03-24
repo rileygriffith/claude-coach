@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Running Coach</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css" />
 </head>
 <body>
   <div class="app">
@@ -36,9 +37,78 @@
     <section id="settings-panel" class="section settings-panel" hidden>
       <h2 class="section-label">Settings</h2>
 
-      <div class="settings-field">
-        <label for="goal-input">Training Goal</label>
-        <textarea id="goal-input" class="goal-input" rows="2" placeholder="e.g. Run a sub-2hr half marathon by June…"></textarea>
+      <div class="settings-group">
+        <div class="settings-group-label">Training</div>
+        <div class="settings-field">
+          <label for="goal-input">Goal</label>
+          <textarea id="goal-input" class="goal-input" rows="2" placeholder="e.g. Run a sub-2hr half marathon by June…"></textarea>
+        </div>
+        <div class="settings-field settings-row">
+          <div>
+            <label for="race-distance-input">Race target</label>
+            <select id="race-distance-input" class="settings-select">
+              <option value="">No race</option>
+              <option value="5K">5K</option>
+              <option value="10K">10K</option>
+              <option value="15K">15K</option>
+              <option value="Half Marathon">Half Marathon</option>
+              <option value="Marathon">Marathon</option>
+              <option value="Ultra">Ultra</option>
+            </select>
+          </div>
+          <div>
+            <label for="race-date-input">Race date</label>
+            <input id="race-date-input" type="text" class="settings-input" placeholder="Pick a date" readonly />
+          </div>
+        </div>
+        <div class="settings-field">
+          <label for="cross-training-input">Cross-training</label>
+          <textarea id="cross-training-input" class="goal-input" rows="2" placeholder="e.g. I lift weights 3–4x per week, mostly lower body…"></textarea>
+        </div>
+        <div class="settings-field">
+          <label for="injury-notes-input">Injury notes</label>
+          <textarea id="injury-notes-input" class="goal-input" rows="2" placeholder="e.g. Recovering from mild plantar fasciitis in left foot…"></textarea>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">Credentials</div>
+        <div class="settings-field">
+          <label for="anthropic-key-input">Anthropic API key</label>
+          <input id="anthropic-key-input" type="password" class="settings-input" placeholder="sk-ant-…" autocomplete="off" />
+        </div>
+        <div class="settings-field">
+          <label for="strava-client-id-input">Strava client ID</label>
+          <input id="strava-client-id-input" type="password" class="settings-input" autocomplete="off" />
+        </div>
+        <div class="settings-field">
+          <label for="strava-client-secret-input">Strava client secret</label>
+          <input id="strava-client-secret-input" type="password" class="settings-input" autocomplete="off" />
+        </div>
+        <div class="settings-field">
+          <label for="strava-refresh-token-input">Strava refresh token</label>
+          <input id="strava-refresh-token-input" type="password" class="settings-input" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">Account</div>
+        <div class="settings-field">
+          <label for="current-password-input">Current password</label>
+          <input id="current-password-input" type="password" class="settings-input" autocomplete="current-password" />
+        </div>
+        <div class="settings-field">
+          <label for="new-password-input">New password</label>
+          <input id="new-password-input" type="password" class="settings-input" autocomplete="new-password" />
+        </div>
+        <button id="change-password-btn" class="settings-action-btn">Change password</button>
+        <p id="change-password-msg" class="settings-msg" hidden></p>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-label">Data</div>
+        <button id="sync-btn" class="settings-action-btn">Sync from Strava now</button>
+        <p id="sync-msg" class="settings-msg" hidden></p>
       </div>
     </section>
 
@@ -107,6 +177,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="app.js"></script>
 </body>
 </html>
