@@ -1,3 +1,4 @@
 node_modules/
 .env
 workouts.json
+coach.db

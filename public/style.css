@@ -74,6 +74,8 @@ header {
   padding: 1.25rem 1.5rem;
 }
 
+.settings-field { margin-bottom: 1.5rem; }
+.settings-field:last-child { margin-bottom: 0; }
 .settings-field label {
   display: block;
   font-size: 0.75rem;
@@ -99,6 +101,59 @@ header {
 }
 
 .goal-input:focus { outline: none; border-color: var(--blue); }
+
+.philosophy-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.philosophy-option {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.philosophy-option input[type="radio"] { display: none; }
+
+.philosophy-option.selected {
+  border-color: var(--blue);
+  background: rgba(96,165,250,0.1);
+  color: var(--blue);
+}
+
+.goal-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.goal-preset {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-family: inherit;
+  padding: 0.4rem 0.85rem;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.goal-preset.active {
+  border-color: var(--green);
+  background: rgba(74,222,128,0.1);
+  color: var(--green);
+}
+
+#custom-philosophy-wrap,
+#custom-goal-wrap { margin-top: 0.5rem; }
 
 .workouts-header {
   display: flex;

@@ -1,14 +1,48 @@
 require('dotenv').config();
-const express = require('express');
-const session = require('express-session');
-const path = require('path');
-const fs = require('fs');
-const Anthropic = require('@anthropic-ai/sdk');
+const express    = require('express');
+const session    = require('express-session');
+const path       = require('path');
+const Database   = require('better-sqlite3');
+const Anthropic  = require('@anthropic-ai/sdk');
 
-// ─── Coaching system prompt ───────────────────────────────────────────────────
-// Replace this placeholder with your coaching system prompt.
-const COACHING_SYSTEM_PROMPT = `COACHING_SYSTEM_PROMPT_PLACEHOLDER`;
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Database ───────────────────────────────────────────────────────────────────
+
+const db = new Database(path.join(__dirname, 'coach.db'));
+db.exec(`
+  CREATE TABLE IF NOT EXISTS runs (
+    id                   INTEGER PRIMARY KEY,
+    name                 TEXT,
+    date                 TEXT,
+    distance             REAL,
+    elapsed_time         INTEGER,
+    average_speed        REAL,
+    average_heartrate    REAL,
+    average_cadence      REAL,
+    average_watts        REAL,
+    total_elevation_gain REAL,
+    sport_type           TEXT
+  );
+  CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+  );
+`);
+
+function getSetting(key, fallback = null) {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  return row ? row.value : fallback;
+}
+
+function setSetting(key, value) {
+  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
+}
+
+// ── Coaching system prompt ─────────────────────────────────────────────────────
+
+const COACHING_PROMPT = `You are an experienced running coach who adapts to each athlete's goals — whether that's building a base, getting faster, training for a race, or simply running consistently. You follow the 80/20 polarized training method: approximately 80% of training at low intensity (easy, conversational pace, Zone 1-2) and 20% at high intensity (Zone 4-5), avoiding the gray zone in between. Always give precise, concrete targets based on the athlete's recent performance data and stated goal. If a goal is provided, let it shape the type and specificity of the workouts you prescribe.`;
+
+
+// ── Express setup ──────────────────────────────────────────────────────────────
 
 const app = express();
 app.use(express.json());
@@ -17,17 +51,15 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'fallback-dev-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 }, // 7 days
+  cookie: { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 },
 }));
 
-// ── Auth middleware ────────────────────────────────────────────────────────────
+// ── Auth ───────────────────────────────────────────────────────────────────────
 
 function requireAuth(req, res, next) {
   if (req.session.authenticated) return next();
   res.redirect('/login');
 }
-
-// ── Login routes ───────────────────────────────────────────────────────────────
 
 app.get('/login', (req, res) => {
   if (req.session.authenticated) return res.redirect('/');
@@ -95,135 +127,163 @@ app.post('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/login'));
 });
 
-// ── Protected static files ─────────────────────────────────────────────────────
-
 app.use(requireAuth);
 app.use(express.static(path.join(__dirname, 'public')));
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const WORKOUTS_FILE = path.join(__dirname, 'workouts.json');
 
-// ── Strava token management ────────────────────────────────────────────────────
+// ── Strava token ───────────────────────────────────────────────────────────────
 
-let cachedToken = null;
-let tokenExpiry = 0;
-
-// ── Activities cache ───────────────────────────────────────────────────────────
-
-let cachedActivities = null;
-let activitiesCachedAt = 0;
-const ACTIVITIES_TTL = 6 * 60 * 60 * 1000; // 6 hours
+let cachedToken  = null;
+let tokenExpiry  = 0;
 
 async function getStravaToken() {
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-
   const res = await fetch('https://www.strava.com/oauth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      client_id: process.env.STRAVA_CLIENT_ID,
+      client_id:     process.env.STRAVA_CLIENT_ID,
       client_secret: process.env.STRAVA_CLIENT_SECRET,
       refresh_token: process.env.STRAVA_REFRESH_TOKEN,
-      grant_type: 'refresh_token',
+      grant_type:    'refresh_token',
     }),
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Strava token refresh failed (${res.status}): ${body}`);
-  }
-
+  if (!res.ok) throw new Error(`Strava token refresh failed (${res.status}): ${await res.text()}`);
   const data = await res.json();
   if (data.errors) throw new Error(`Strava error: ${JSON.stringify(data.errors)}`);
-
   cachedToken = data.access_token;
-  tokenExpiry = data.expires_at * 1000 - 60_000; // refresh 1 min before expiry
+  tokenExpiry = data.expires_at * 1000 - 60_000;
   return cachedToken;
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Strava sync ────────────────────────────────────────────────────────────────
 
-function formatPace(speedMs) {
-  if (!speedMs || speedMs <= 0) return 'N/A';
-  const secsPerMile = 1609.34 / speedMs;
-  const mins = Math.floor(secsPerMile / 60);
-  const secs = Math.round(secsPerMile % 60);
-  return `${mins}:${String(secs).padStart(2, '0')} min/mi`;
-}
+const RUN_TYPES  = ['Run', 'TrailRun', 'VirtualRun', 'Treadmill'];
+const SYNC_TTL   = 60 * 60 * 1000; // 1 hour
 
-function buildRunSummary(runs) {
-  return runs
-    .map((r) => {
-      const distMi = (r.distance / 1609.34).toFixed(2);
-      const pace = formatPace(r.average_speed);
-      const date = new Date(r.date).toLocaleDateString('en-US', {
-        month: 'short', day: 'numeric', year: 'numeric',
-      });
-      return (
-        `- ${date}: ${distMi}mi, pace ${pace}` +
-        `, HR ${r.average_heartrate ? Math.round(r.average_heartrate) + ' bpm' : 'N/A'}` +
-        `, cadence ${r.average_cadence ? Math.round(r.average_cadence) + ' spm' : 'N/A'}` +
-        `, power ${r.average_watts ? Math.round(r.average_watts) + 'W' : 'N/A'}` +
-        `, elevation gain ${Math.round(r.total_elevation_gain || 0)}ft` +
-        `, elapsed time ${Math.floor(r.elapsed_time / 60)}m${r.elapsed_time % 60}s`
-      );
-    })
-    .join('\n');
-}
+async function syncFromStrava() {
+  const lastSynced = parseInt(getSetting('last_synced_at', '0'));
+  if (Date.now() - lastSynced < SYNC_TTL) return;
 
-// ── Routes ─────────────────────────────────────────────────────────────────────
+  const token  = await getStravaToken();
+  const latest = db.prepare('SELECT date FROM runs ORDER BY date DESC LIMIT 1').get();
+  const after  = latest
+    ? Math.floor(new Date(latest.date).getTime() / 1000)
+    : Math.floor(Date.now() / 1000) - 6 * 30 * 24 * 60 * 60;
 
-async function getActivities() {
-  if (cachedActivities && Date.now() - activitiesCachedAt < ACTIVITIES_TTL) {
-    return cachedActivities;
-  }
-
-  const token = await getStravaToken();
-  const after = Math.floor(Date.now() / 1000) - 6 * 30 * 24 * 60 * 60; // ~6 months ago
-
-  let page = 1;
-  let allActivities = [];
+  let page = 1, fetched = [];
   while (true) {
     const response = await fetch(
       `https://www.strava.com/api/v3/athlete/activities?per_page=200&after=${after}&page=${page}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
-
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`Strava error (${response.status}): ${body}`);
-    }
-
-    const page_activities = await response.json();
-    if (page_activities.length === 0) break;
-    allActivities = allActivities.concat(page_activities);
-    if (page_activities.length < 200) break;
+    if (!response.ok) throw new Error(`Strava error (${response.status}): ${await response.text()}`);
+    const activities = await response.json();
+    if (!activities.length) break;
+    fetched = fetched.concat(activities.filter(a => RUN_TYPES.includes(a.sport_type || a.type)));
+    if (activities.length < 200) break;
     page++;
   }
 
-  const runs = allActivities
-    .filter((a) => ['Run', 'TrailRun', 'VirtualRun', 'Treadmill'].includes(a.sport_type || a.type))
-    .map((a) => ({
-      name: a.name,
-      date: a.start_date_local,
-      distance: a.distance,
-      elapsed_time: a.elapsed_time,
-      average_speed: a.average_speed,
-      average_heartrate: a.average_heartrate || null,
-      average_cadence: a.average_cadence || null,
-      average_watts: a.average_watts || null,
-      total_elevation_gain: a.total_elevation_gain || 0,
-    }));
+  const insert = db.prepare(`
+    INSERT OR REPLACE INTO runs
+      (id, name, date, distance, elapsed_time, average_speed,
+       average_heartrate, average_cadence, average_watts, total_elevation_gain, sport_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  db.transaction(runs => {
+    for (const a of runs) insert.run(
+      a.id, a.name, a.start_date_local, a.distance, a.elapsed_time,
+      a.average_speed, a.average_heartrate || null, a.average_cadence || null,
+      a.average_watts || null, a.total_elevation_gain || 0, a.sport_type || a.type
+    );
+  })(fetched);
 
-  runs.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  cachedActivities = runs;
-  activitiesCachedAt = Date.now();
-  return runs;
+  setSetting('last_synced_at', Date.now().toString());
+  console.log(`[sync] ${fetched.length} new run(s) added to DB`);
 }
 
+function getRunsFromDB() {
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  return db.prepare('SELECT * FROM runs WHERE date > ? ORDER BY date DESC')
+    .all(sixMonthsAgo.toISOString());
+}
 
-// GET /api/activities — fetch and filter runs from Strava (cached 6h)
+async function getActivities() {
+  await syncFromStrava();
+  return getRunsFromDB();
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function buildRunSummary(runs) {
+  return runs.map(r => {
+    const distMi = (r.distance / 1609.34).toFixed(2);
+    const secsPerMile = 1609.34 / r.average_speed;
+    const mins = Math.floor(secsPerMile / 60);
+    const secs = Math.round(secsPerMile % 60);
+    const pace = r.average_speed > 0
+      ? `${mins}:${String(secs).padStart(2, '0')} min/mi`
+      : 'N/A';
+    const date = new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return (
+      `- ${date}: ${distMi}mi, pace ${pace}` +
+      `, HR ${r.average_heartrate ? Math.round(r.average_heartrate) + ' bpm' : 'N/A'}` +
+      `, power ${r.average_watts ? Math.round(r.average_watts) + 'W' : 'N/A'}` +
+      `, elevation gain ${Math.round(r.total_elevation_gain || 0)}ft` +
+      `, elapsed ${Math.floor(r.elapsed_time / 60)}m${r.elapsed_time % 60}s`
+    );
+  }).join('\n');
+}
+
+function buildPromptContent(runs, units = 'miles') {
+  const goal = getSetting('goal', '');
+  const runSummary = runs.length ? buildRunSummary(runs) : '(no runs found)';
+  const unitInstruction = units === 'miles'
+    ? 'All distances and paces must be in miles and min/mi.'
+    : 'All distances and paces must be in kilometers and min/km.';
+  const goalSection = goal
+    ? `\n\n━━━ ATHLETE'S CURRENT GOAL ━━━\n${goal}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
+    : '';
+
+  return (
+    `Here are my recent runs:\n${runSummary}${goalSection}\n\n` +
+    `${unitInstruction} ` +
+    `Based on this training history, generate 3 workout options for my next session. ` +
+    `All 3 should represent roughly the same training load and difficulty — they are alternatives to each other, not progressions. ` +
+    `Vary the workout type to offer variety (e.g. tempo, intervals, steady-state, fartlek, long run, etc.). ` +
+    `For each option provide specific, concrete targets the athlete should hit — exact paces, distances, rep structures, rest intervals, etc. Be precise, not vague.\n\n` +
+    `Respond ONLY with valid JSON in exactly this format:\n` +
+    `{\n` +
+    `  "option_a": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" },\n` +
+    `  "option_b": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" },\n` +
+    `  "option_c": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" }\n` +
+    `}`
+  );
+}
+
+// ── Settings API ───────────────────────────────────────────────────────────────
+
+app.get('/api/settings', (req, res) => {
+  const INTERNAL_KEYS = ['last_synced_at'];
+  const rows = db.prepare('SELECT key, value FROM settings').all();
+  const s = {};
+  rows.forEach(r => { if (!INTERNAL_KEYS.includes(r.key)) s[r.key] = r.value; });
+  res.json(s);
+});
+
+app.post('/api/settings', (req, res) => {
+  const ALLOWED = ['goal'];
+  const { key, value } = req.body;
+  if (!ALLOWED.includes(key)) return res.status(400).json({ error: 'Invalid setting key' });
+  setSetting(key, value);
+  res.json({ ok: true });
+});
+
+// ── Activities API ─────────────────────────────────────────────────────────────
+
 app.get('/api/activities', async (_req, res) => {
   try {
     res.json(await getActivities());
@@ -233,100 +293,43 @@ app.get('/api/activities', async (_req, res) => {
   }
 });
 
-// POST /api/prompt-preview — return the exact prompt that would be sent to Claude
-app.post('/api/prompt-preview', requireAuth, async (req, res) => {
+// ── Prompt preview ─────────────────────────────────────────────────────────────
+
+app.post('/api/prompt-preview', async (req, res) => {
   try {
     const runs = await getActivities();
-    const { goal, units = 'miles' } = req.body || {};
-    const isImperial = units === 'miles';
-    const runSummary = runs.length ? buildRunSummary(runs) : '(no runs found)';
-    const goalSection = goal ? `\nMy current training goal: ${goal}\n` : '';
-    const unitInstruction = isImperial
-      ? 'All distances and paces must be in miles and min/mi.'
-      : 'All distances and paces must be in kilometers and min/km.';
-
-    const prompt =
-      `[System prompt]\n${COACHING_SYSTEM_PROMPT}\n\n` +
-      `[User message]\n` +
-      `Here are my recent runs:\n${runSummary}\n${goalSection}\n` +
-      `${unitInstruction} ` +
-      `Based on this training history, generate 3 workout options for my next session. ` +
-      `All 3 should represent roughly the same training load and difficulty — they are alternatives to each other, not progressions. ` +
-      `Vary the workout type to offer variety (e.g. tempo, intervals, steady-state, fartlek, long run, etc.). ` +
-      `For each option provide specific, concrete targets the athlete should hit — exact paces, distances, rep structures, rest intervals, etc. Be precise, not vague.\n\n` +
-      `Respond ONLY with valid JSON in exactly this format:\n` +
-      `{\n` +
-      `  "option_a": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" },\n` +
-      `  "option_b": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" },\n` +
-      `  "option_c": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" }\n` +
-      `}`;
-
-    res.json({ prompt, run_count: runs.length });
+    const { units = 'miles' } = req.body || {};
+    const systemPrompt = COACHING_PROMPT;
+    const userContent = buildPromptContent(runs, units);
+    res.json({
+      prompt: `[System prompt]\n${systemPrompt}\n\n[User message]\n${userContent}`,
+      run_count: runs.length,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET /api/raw-activity — returns the raw Strava object for the most recent run
-app.get('/api/raw-activity', requireAuth, async (_req, res) => {
-  try {
-    const token = await getStravaToken();
-    const response = await fetch(
-      'https://www.strava.com/api/v3/athlete/activities?per_page=1',
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    const data = await response.json();
-    res.json(data[0] || {});
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// ── Generate workout ───────────────────────────────────────────────────────────
 
-// POST /api/generate-workout — call Claude to generate 3 workout options
 app.post('/api/generate-workout', async (req, res) => {
   try {
     const runs = await getActivities();
-    if (!runs.length) {
-      return res.status(400).json({ error: 'No runs found on Strava.' });
-    }
+    if (!runs.length) return res.status(400).json({ error: 'No runs found on Strava.' });
 
-    const { goal, units = 'miles' } = req.body || {};
-    const isImperial = units === 'miles';
-    const runSummary = buildRunSummary(runs);
-    const goalSection = goal ? `\nMy current training goal: ${goal}\n` : '';
-    const unitInstruction = isImperial
-      ? 'All distances and paces must be in miles and min/mi.'
-      : 'All distances and paces must be in kilometers and min/km.';
-
+    const { units = 'miles' } = req.body || {};
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model:      'claude-sonnet-4-6',
       max_tokens: 1024,
-      system: COACHING_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: `Here are my recent runs:\n${runSummary}\n${goalSection}\n` +
-            `${unitInstruction} ` +
-            `Based on this training history, generate 3 workout options for my next session. ` +
-            `All 3 should represent roughly the same training load and difficulty — they are alternatives to each other, not progressions. ` +
-            `Vary the workout type to offer variety (e.g. tempo, intervals, steady-state, fartlek, long run, etc.). ` +
-            `For each option provide specific, concrete targets the athlete should hit — exact paces, distances, rep structures, rest intervals, etc. Be precise, not vague.\n\n` +
-            `Respond ONLY with valid JSON in exactly this format:\n` +
-            `{\n` +
-            `  "option_a": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" },\n` +
-            `  "option_b": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" },\n` +
-            `  "option_c": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" }\n` +
-            `}`,
-        },
-      ],
+      system:     COACHING_PROMPT,
+      messages:   [{ role: 'user', content: buildPromptContent(runs, units) }],
     });
 
-    const text = message.content[0].text;
+    const text      = message.content[0].text;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('Claude response contained no JSON');
     const workouts = JSON.parse(jsonMatch[0]);
 
-    // Sonnet 4.6 pricing: $3/M input, $15/M output
     const { input_tokens, output_tokens } = message.usage;
     const cost = (input_tokens / 1_000_000) * 3 + (output_tokens / 1_000_000) * 15;
 
@@ -337,19 +340,16 @@ app.post('/api/generate-workout', async (req, res) => {
   }
 });
 
-// POST /api/log-workout — append selected workout to local JSON log
-app.post('/api/log-workout', async (req, res) => {
+// ── Raw activity debug ─────────────────────────────────────────────────────────
+
+app.get('/api/raw-activity', async (_req, res) => {
   try {
-    const { workout } = req.body;
-    let log = [];
-    if (fs.existsSync(WORKOUTS_FILE)) {
-      log = JSON.parse(fs.readFileSync(WORKOUTS_FILE, 'utf8'));
-    }
-    log.push({ ...workout, logged_at: new Date().toISOString() });
-    fs.writeFileSync(WORKOUTS_FILE, JSON.stringify(log, null, 2));
-    res.json({ success: true });
+    const token    = await getStravaToken();
+    const response = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=1',
+      { headers: { Authorization: `Bearer ${token}` } });
+    const data = await response.json();
+    res.json(data[0] || {});
   } catch (err) {
-    console.error('[/api/log-workout]', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -357,6 +357,4 @@ app.post('/api/log-workout', async (req, res) => {
 // ── Start ──────────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Running coach → http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`Running coach → http://localhost:${PORT}`));

@@ -176,7 +176,6 @@ async function generateWorkout() {
   btnLoading.hidden = false;
 
   document.getElementById('workouts-section').hidden = true;
-  document.getElementById('confirmed-section').hidden = true;
 
   try {
     const goal = localStorage.getItem('userGoal') || '';
@@ -297,7 +296,7 @@ promptPreviewBtn.addEventListener('click', async () => {
       const res = await fetch('/api/prompt-preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ goal: localStorage.getItem('userGoal') || '', units: useImperial ? 'miles' : 'km' }),
+        body: JSON.stringify({ units: useImperial ? 'miles' : 'km' }),
       });
       const data = await res.json();
       promptPreviewEl.textContent = data.prompt;
@@ -313,17 +312,33 @@ promptPreviewBtn.addEventListener('click', async () => {
 // ── Settings ──────────────────────────────────────────────────────────────────
 
 const settingsPanel = document.getElementById('settings-panel');
-const goalInput     = document.getElementById('goal-input');
 
 document.getElementById('settings-btn').addEventListener('click', () => {
   settingsPanel.hidden = !settingsPanel.hidden;
 });
 
-goalInput.value = localStorage.getItem('userGoal') || '';
-goalInput.addEventListener('input', () => {
-  localStorage.setItem('userGoal', goalInput.value.trim());
+async function saveSetting(key, value) {
   promptLoaded = false;
-});
+  await fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, value }),
+  });
+}
+
+async function loadSettings() {
+  const res  = await fetch('/api/settings');
+  const data = await res.json();
+
+  // ── Goal input ───────────────────────────────────────────────────────────
+  const goalInput = document.getElementById('goal-input');
+  goalInput.value = data.goal || '';
+  let goalTimer;
+  goalInput.addEventListener('input', () => {
+    clearTimeout(goalTimer);
+    goalTimer = setTimeout(() => saveSetting('goal', goalInput.value.trim()), 600);
+  });
+}
 
 // ── Unit toggle ───────────────────────────────────────────────────────────────
 
@@ -343,4 +358,5 @@ document.getElementById('unit-mi').addEventListener('click', () => {
   if (allRuns.length) loadActivities();
 });
 
+loadSettings();
 loadActivities();
