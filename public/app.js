@@ -25,7 +25,7 @@ function unitLabel() {
   return useImperial ? 'mi' : 'km';
 }
 
-function buildMonthGrid(year, month, runDates, todayStr) {
+function buildMonthGrid(year, month, runDates, todayStr, unresolvedDates = new Set(), sessionDates = new Set()) {
   const monthName = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -41,10 +41,15 @@ function buildMonthGrid(year, month, runDates, todayStr) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const hasRun = runDates.has(dateStr);
     const isToday = dateStr === todayStr;
+    const isUnresolved = unresolvedDates.has(dateStr);
+    const hasSession = sessionDates.has(dateStr);
     let cls = 'cal-cell';
     if (hasRun) cls += ' has-run';
     if (isToday) cls += ' today';
-    return `<div class="${cls}"><span class="cal-day-num">${d}</span>${hasRun ? '<span class="cal-dot"></span>' : ''}</div>`;
+    if (isUnresolved) cls += ' unresolved';
+    if (hasSession) cls += ' has-session';
+    const clickAttr = hasSession ? `data-session-date="${dateStr}"` : '';
+    return `<div class="${cls}" ${clickAttr}><span class="cal-day-num">${d}</span>${hasRun ? '<span class="cal-dot"></span>' : ''}</div>`;
   }).join('');
 
   return `
@@ -59,10 +64,10 @@ function buildMonthGrid(year, month, runDates, todayStr) {
   `;
 }
 
-function renderCalendar(runs) {
+async function renderCalendar(runs) {
   const runDates = new Set(runs.map((r) => r.date.slice(0, 10)));
   const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
   const curYear = today.getFullYear();
   const curMonth = today.getMonth();
@@ -70,12 +75,27 @@ function renderCalendar(runs) {
   const prevYear = prevDate.getFullYear();
   const prevMonth = prevDate.getMonth();
 
+  let unresolvedDates = new Set();
+  let sessionDates = new Set();
+  try {
+    const [unresolvedRes, sessionRes] = await Promise.all([
+      fetch('/api/unresolved-sessions'),
+      fetch('/api/session-dates'),
+    ]);
+    unresolvedDates = new Set((await unresolvedRes.json()).dates);
+    sessionDates = new Set((await sessionRes.json()).dates);
+  } catch (_) {}
+
   document.getElementById('calendar').innerHTML = `
     <div class="cal-months-row">
-      ${buildMonthGrid(prevYear, prevMonth, runDates, todayStr)}
-      ${buildMonthGrid(curYear, curMonth, runDates, todayStr)}
+      ${buildMonthGrid(prevYear, prevMonth, runDates, todayStr, unresolvedDates, sessionDates)}
+      ${buildMonthGrid(curYear, curMonth, runDates, todayStr, unresolvedDates, sessionDates)}
     </div>
   `;
+
+  document.querySelectorAll('.cal-cell[data-session-date]').forEach((cell) => {
+    cell.addEventListener('click', () => openSessionModal(cell.dataset.sessionDate));
+  });
 }
 
 function formatDate(dateStr) {
@@ -249,12 +269,95 @@ function renderWorkouts(workouts) {
 
 // ── Select workout ────────────────────────────────────────────────────────────
 
-function selectWorkout(type) {
+async function selectWorkoutForDate(type, date) {
+  await fetch('/api/select-workout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ selected: type, date }),
+  });
+  promptLoaded = false;
+  document.getElementById('unresolved-banner').hidden = true;
+  renderCalendar(allRuns);
+}
+
+async function selectWorkout(type) {
   document.querySelectorAll('.workout-card').forEach((c) => c.classList.remove('selected'));
   const selected = document.querySelector(`[data-type="${type}"]`);
   if (selected) selected.classList.add('selected');
   localStorage.setItem('selectedWorkout', type);
+
+  await fetch('/api/select-workout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ selected: type }),
+  });
+
+  promptLoaded = false;
+  document.getElementById('generate-btn').disabled = true;
+  document.getElementById('unresolved-banner').hidden = true;
 }
+
+// ── Session modal ─────────────────────────────────────────────────────────────
+
+async function openSessionModal(date) {
+  const modal = document.getElementById('session-modal');
+  const title = document.getElementById('session-modal-date');
+  const body  = document.getElementById('session-modal-body');
+
+  title.textContent = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  body.innerHTML = '<div class="state-msg">Loading…</div>';
+  modal.hidden = false;
+
+  try {
+    const res = await fetch(`/api/session/${date}`);
+    const data = await res.json();
+    const options = [
+      { key: 'option_a', label: 'Option A' },
+      { key: 'option_b', label: 'Option B' },
+      { key: 'option_c', label: 'Option C' },
+    ];
+
+    body.innerHTML = options.map(({ key, label }) => {
+      const w = data[key];
+      const isSelected = data.selected === key;
+      return `
+        <div class="modal-workout ${isSelected ? 'modal-workout-selected' : ''} modal-workout-selectable" data-key="${key}">
+          <div class="modal-workout-header">
+            <span class="badge">${label}</span>
+            ${isSelected ? '<span class="modal-chosen">✓ Chosen</span>' : ''}
+          </div>
+          <div class="workout-type">${w.type}</div>
+          <div class="workout-structure">${w.structure}</div>
+          <div class="workout-pace">Target: ${w.target_pace}</div>
+          <div class="workout-rationale">${w.rationale}</div>
+        </div>
+      `;
+    }).join('') + `
+      <button id="modal-none-btn" class="modal-none-btn">None of the above — did something else</button>
+    `;
+
+    body.querySelectorAll('.modal-workout-selectable').forEach((card) => {
+      card.addEventListener('click', async () => {
+        await selectWorkoutForDate(card.dataset.key, date);
+        modal.hidden = true;
+      });
+    });
+    document.getElementById('modal-none-btn').addEventListener('click', async () => {
+      await selectWorkoutForDate('none', date);
+      modal.hidden = true;
+    });
+  } catch (err) {
+    body.innerHTML = `<div class="state-error">${err.message}</div>`;
+  }
+}
+
+document.getElementById('session-modal-close').addEventListener('click', () => {
+  document.getElementById('session-modal').hidden = true;
+});
+
+document.getElementById('session-modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.hidden = true;
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -358,5 +461,38 @@ document.getElementById('unit-mi').addEventListener('click', () => {
   if (allRuns.length) loadActivities();
 });
 
+async function checkTodaySession() {
+  try {
+    const res = await fetch('/api/today-session');
+    const data = await res.json();
+    if (!data.session) return;
+
+    // Show workouts section with today's session
+    currentWorkouts = data.session;
+    renderWorkouts(data.session);
+    document.getElementById('workouts-section').hidden = false;
+    document.querySelector('.generate-section').hidden = true;
+
+    // Restore DB-persisted selection (overrides localStorage)
+    if (data.session.selected) {
+      document.querySelectorAll('.workout-card').forEach((c) => c.classList.remove('selected'));
+      const card = document.querySelector(`[data-type="${data.session.selected}"]`);
+      if (card) card.classList.add('selected');
+      localStorage.setItem('selectedWorkout', data.session.selected);
+    }
+
+    // Lock generate button once a selection exists for today
+    if (data.session.selected) {
+      document.getElementById('generate-btn').disabled = true;
+    }
+
+    // If a run was completed today but no selection made, show top banner
+    if (data.run_completed_today && !data.session.selected) {
+      document.getElementById('unresolved-banner').hidden = false;
+    }
+  } catch (_) { /* non-critical */ }
+}
+
 loadSettings();
 loadActivities();
+checkTodaySession();

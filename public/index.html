@@ -26,6 +26,12 @@
       </div>
     </header>
 
+    <!-- Unresolved workout banner -->
+    <div id="unresolved-banner" class="pick-workout-banner" hidden>
+      A completed run was detected but you haven't logged which workout you did.
+      <a href="#workouts-section" class="banner-link">Select below ↓</a>
+    </div>
+
     <!-- Settings panel -->
     <section id="settings-panel" class="section settings-panel" hidden>
       <h2 class="section-label">Settings</h2>
@@ -73,6 +79,17 @@
       </div>
     </section>
 
+  </div>
+
+  <!-- Session modal -->
+  <div id="session-modal" class="modal-backdrop" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="session-modal-date" class="modal-title"></h2>
+        <button id="session-modal-close" class="modal-close">✕</button>
+      </div>
+      <div id="session-modal-body" class="modal-body"></div>
+    </div>
   </div>
 
   <script src="app.js"></script>

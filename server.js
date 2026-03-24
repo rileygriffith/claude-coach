@@ -8,6 +8,10 @@ const Anthropic  = require('@anthropic-ai/sdk');
 // ── Database ───────────────────────────────────────────────────────────────────
 
 const db = new Database(path.join(__dirname, 'coach.db'));
+// Add workout_type column to existing DBs that predate this migration
+try { db.exec('ALTER TABLE runs ADD COLUMN workout_type TEXT'); } catch (_) {}
+try { db.exec('ALTER TABLE workout_sessions ADD COLUMN recommended TEXT'); } catch (_) {}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS runs (
     id                   INTEGER PRIMARY KEY,
@@ -26,7 +30,22 @@ db.exec(`
     key   TEXT PRIMARY KEY,
     value TEXT
   );
+  CREATE TABLE IF NOT EXISTS workout_sessions (
+    date       TEXT PRIMARY KEY,
+    option_a   TEXT,
+    option_b   TEXT,
+    option_c   TEXT,
+    selected   TEXT,
+    created_at TEXT
+  );
 `);
+
+function localDateStr(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 function getSetting(key, fallback = null) {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
@@ -218,7 +237,7 @@ async function getActivities() {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function buildRunSummary(runs) {
+function buildRunSummary(runs, sessionMap = {}) {
   return runs.map(r => {
     const distMi = (r.distance / 1609.34).toFixed(2);
     const secsPerMile = 1609.34 / r.average_speed;
@@ -231,16 +250,29 @@ function buildRunSummary(runs) {
     return (
       `- ${date}: ${distMi}mi, pace ${pace}` +
       `, HR ${r.average_heartrate ? Math.round(r.average_heartrate) + ' bpm' : 'N/A'}` +
+      `, cadence ${r.average_cadence ? Math.round(r.average_cadence) + ' spm' : 'N/A'}` +
       `, power ${r.average_watts ? Math.round(r.average_watts) + 'W' : 'N/A'}` +
       `, elevation gain ${Math.round(r.total_elevation_gain || 0)}ft` +
-      `, elapsed ${Math.floor(r.elapsed_time / 60)}m${r.elapsed_time % 60}s`
+      `, elapsed ${Math.floor(r.elapsed_time / 60)}m${r.elapsed_time % 60}s` +
+      (sessionMap[r.date.slice(0, 10)] ? `, workout: ${sessionMap[r.date.slice(0, 10)]}` : '')
     );
   }).join('\n');
 }
 
 function buildPromptContent(runs, units = 'miles') {
   const goal = getSetting('goal', '');
-  const runSummary = runs.length ? buildRunSummary(runs) : '(no runs found)';
+
+  // Build date → workout structure map from sessions with a selection
+  const sessions = db.prepare('SELECT date, option_a, option_b, option_c, recommended, selected FROM workout_sessions').all();
+  const sessionMap = {};
+  for (const s of sessions) {
+    const key = s.selected || s.recommended;
+    if (key && s[key]) {
+      try { sessionMap[s.date] = JSON.parse(s[key]).structure; } catch (_) {}
+    }
+  }
+
+  const runSummary = runs.length ? buildRunSummary(runs, sessionMap) : '(no runs found)';
   const unitInstruction = units === 'miles'
     ? 'All distances and paces must be in miles and min/mi.'
     : 'All distances and paces must be in kilometers and min/km.';
@@ -251,12 +283,13 @@ function buildPromptContent(runs, units = 'miles') {
   return (
     `Here are my recent runs:\n${runSummary}${goalSection}\n\n` +
     `${unitInstruction} ` +
-    `Based on this training history, generate 3 workout options for my next session. ` +
-    `All 3 should represent roughly the same training load and difficulty — they are alternatives to each other, not progressions. ` +
-    `Vary the workout type to offer variety (e.g. tempo, intervals, steady-state, fartlek, long run, etc.). ` +
-    `For each option provide specific, concrete targets the athlete should hit — exact paces, distances, rep structures, rest intervals, etc. Be precise, not vague.\n\n` +
+    `Based on this training history, generate one recommended workout for my next session, plus two alternatives. ` +
+    `The recommended workout should be the single best option given current fitness, recent load, and stated goal. ` +
+    `The two alternatives should offer variety (e.g. if recommended is a tempo, alternatives might be intervals and an easy run) at roughly the same training load. ` +
+    `For each workout provide specific, concrete targets — exact paces, distances, rep structures, rest intervals. Be precise, not vague.\n\n` +
     `Respond ONLY with valid JSON in exactly this format:\n` +
     `{\n` +
+    `  "recommended": "option_a",\n` +
     `  "option_a": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" },\n` +
     `  "option_b": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" },\n` +
     `  "option_c": { "type": "string", "structure": "string", "target_pace": "string", "rationale": "string" }\n` +
@@ -266,7 +299,7 @@ function buildPromptContent(runs, units = 'miles') {
 
 // ── Settings API ───────────────────────────────────────────────────────────────
 
-app.get('/api/settings', (req, res) => {
+app.get('/api/settings', (_req, res) => {
   const INTERNAL_KEYS = ['last_synced_at'];
   const rows = db.prepare('SELECT key, value FROM settings').all();
   const s = {};
@@ -333,11 +366,86 @@ app.post('/api/generate-workout', async (req, res) => {
     const { input_tokens, output_tokens } = message.usage;
     const cost = (input_tokens / 1_000_000) * 3 + (output_tokens / 1_000_000) * 15;
 
+    const today = localDateStr();
+    db.prepare(`
+      INSERT OR REPLACE INTO workout_sessions (date, option_a, option_b, option_c, recommended, selected, created_at)
+      VALUES (?, ?, ?, ?, ?, NULL, ?)
+    `).run(today, JSON.stringify(workouts.option_a), JSON.stringify(workouts.option_b), JSON.stringify(workouts.option_c), workouts.recommended || 'option_a', new Date().toISOString());
+
     res.json({ workouts, cost, input_tokens, output_tokens });
   } catch (err) {
     console.error('[/api/generate-workout]', err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── Today's session ────────────────────────────────────────────────────────────
+
+app.get('/api/today-session', (_req, res) => {
+  const today = localDateStr();
+  const session = db.prepare('SELECT * FROM workout_sessions WHERE date = ?').get(today);
+  if (!session) return res.json({ session: null });
+  // Check if a run was completed today
+  const todayRun = db.prepare("SELECT id FROM runs WHERE date LIKE ? LIMIT 1").get(`${today}%`);
+  res.json({
+    session: {
+      option_a: JSON.parse(session.option_a),
+      option_b: JSON.parse(session.option_b),
+      option_c: JSON.parse(session.option_c),
+      recommended: session.recommended || 'option_a',
+      selected: session.selected,
+    },
+    run_completed_today: !!todayRun,
+  });
+});
+
+app.post('/api/select-workout', (req, res) => {
+  const { selected, date } = req.body;
+  if (!['option_a', 'option_b', 'option_c', 'none'].includes(selected)) {
+    return res.status(400).json({ error: 'Invalid selection' });
+  }
+  const targetDate = date || localDateStr();
+  const result = db.prepare('UPDATE workout_sessions SET selected = ? WHERE date = ?').run(selected, targetDate);
+  if (result.changes === 0) return res.status(404).json({ error: 'No session for that date' });
+
+  // Tag the run(s) on that date with the workout type
+  const session = db.prepare('SELECT * FROM workout_sessions WHERE date = ?').get(targetDate);
+  if (session && session[selected]) {
+    const workout = JSON.parse(session[selected]);
+    db.prepare("UPDATE runs SET workout_type = ? WHERE date LIKE ?").run(workout.type, `${targetDate}%`);
+  }
+
+  res.json({ ok: true });
+});
+
+// ── Session lookup ─────────────────────────────────────────────────────────────
+
+app.get('/api/session-dates', (_req, res) => {
+  const rows = db.prepare('SELECT date FROM workout_sessions').all();
+  res.json({ dates: rows.map(r => r.date) });
+});
+
+app.get('/api/session/:date', (req, res) => {
+  const session = db.prepare('SELECT * FROM workout_sessions WHERE date = ?').get(req.params.date);
+  if (!session) return res.status(404).json({ error: 'No session for that date' });
+  res.json({
+    date: session.date,
+    option_a: JSON.parse(session.option_a),
+    option_b: JSON.parse(session.option_b),
+    option_c: JSON.parse(session.option_c),
+    selected: session.selected,
+  });
+});
+
+// ── Unresolved sessions (run completed but no workout selected) ────────────────
+
+app.get('/api/unresolved-sessions', (_req, res) => {
+  // Sessions where a run exists on that date but no selection was made
+  const sessions = db.prepare('SELECT date FROM workout_sessions WHERE selected IS NULL').all();
+  const unresolved = sessions
+    .filter(s => db.prepare("SELECT id FROM runs WHERE date LIKE ? LIMIT 1").get(`${s.date}%`))
+    .map(s => s.date);
+  res.json({ dates: unresolved });
 });
 
 // ── Raw activity debug ─────────────────────────────────────────────────────────
