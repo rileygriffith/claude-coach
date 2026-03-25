@@ -1,12 +1,13 @@
-FROM node:20-alpine
+FROM node:22-alpine
+
+# better-sqlite3 requires native build tools
+RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-# Install dependencies first (cached layer)
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Copy app source
 COPY . .
 
 EXPOSE 3000
