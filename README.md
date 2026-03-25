@@ -2,7 +2,7 @@
 
 An AI-powered running coach that connects to your Strava account and uses Claude to generate personalized workout recommendations based on your training history.
 
-![Dashboard](dashboard.png)
+![Dashboard](screenshots/dashboard.png)
 
 ## Features
 
@@ -19,9 +19,11 @@ An AI-powered running coach that connects to your Strava account and uses Claude
 
 ## Screenshots
 
-![Generate modal](generate.png)
+![Generate modal](screenshots/generate.png)
 
-![Settings](settings.png)
+![Recommended workout](screenshots/recommended.png)
+
+![Settings](screenshots/settings.png)
 
 ---
 
