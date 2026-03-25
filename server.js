@@ -7,7 +7,9 @@ const Anthropic  = require('@anthropic-ai/sdk');
 
 // ── Database ───────────────────────────────────────────────────────────────────
 
-const db = new Database(path.join(__dirname, 'coach.db'));
+const dataDir = path.join(__dirname, 'data');
+require('fs').mkdirSync(dataDir, { recursive: true });
+const db = new Database(path.join(dataDir, 'coach.db'));
 // Add workout_type column to existing DBs that predate this migration
 try { db.exec('ALTER TABLE runs ADD COLUMN workout_type TEXT'); } catch (_) {}
 try { db.exec('ALTER TABLE workout_sessions ADD COLUMN recommended TEXT'); } catch (_) {}
