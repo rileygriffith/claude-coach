@@ -429,7 +429,7 @@ app.post('/api/generate-workout', async (req, res) => {
     const runs = await getActivities();
     if (!runs.length) return res.status(400).json({ error: 'No runs found on Strava.' });
 
-    const { units = 'miles', soreness = 'none' } = req.body || {};
+    const { units = 'miles', soreness = 'none', date } = req.body || {};
     const message = await getAnthropicClient().messages.create({
       model:      'claude-sonnet-4-6',
       max_tokens: 1024,
@@ -445,11 +445,11 @@ app.post('/api/generate-workout', async (req, res) => {
     const { input_tokens, output_tokens } = message.usage;
     const cost = (input_tokens / 1_000_000) * 3 + (output_tokens / 1_000_000) * 15;
 
-    const today = localDateStr();
+    const sessionDate = date || localDateStr();
     db.prepare(`
       INSERT OR REPLACE INTO workout_sessions (date, option_a, option_b, option_c, recommended, selected, input_tokens, output_tokens, created_at)
       VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)
-    `).run(today, JSON.stringify(workouts.option_a), JSON.stringify(workouts.option_b), JSON.stringify(workouts.option_c), workouts.recommended || 'option_a', input_tokens, output_tokens, new Date().toISOString());
+    `).run(sessionDate, JSON.stringify(workouts.option_a), JSON.stringify(workouts.option_b), JSON.stringify(workouts.option_c), workouts.recommended || 'option_a', input_tokens, output_tokens, new Date().toISOString());
 
     res.json({ workouts, cost, input_tokens, output_tokens });
   } catch (err) {

@@ -659,6 +659,21 @@ header {
   opacity: 0.85;
 }
 
+.cal-cell.future-selectable {
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.cal-cell.future-selectable:hover {
+  opacity: 1;
+  border-color: var(--border);
+}
+
+.cal-cell.target-date {
+  border-color: var(--accent) !important;
+  opacity: 1;
+}
+
 /* ── Session modal ───────────────────────────────────────────────────────────── */
 .modal-backdrop {
   position: fixed;

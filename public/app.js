@@ -41,6 +41,7 @@ function buildMonthGrid(year, month, runDates, todayStr, unresolvedDates = new S
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const hasRun = runDates.has(dateStr);
     const isToday = dateStr === todayStr;
+    const isFutureOrToday = dateStr >= todayStr;
     const isUnresolved = unresolvedDates.has(dateStr);
     const hasSession = sessionDates.has(dateStr);
     let cls = 'cal-cell';
@@ -48,7 +49,10 @@ function buildMonthGrid(year, month, runDates, todayStr, unresolvedDates = new S
     if (isToday) cls += ' today';
     if (isUnresolved) cls += ' unresolved';
     if (hasSession) cls += ' has-session';
-    const clickAttr = hasSession ? `data-session-date="${dateStr}"` : '';
+    if (isFutureOrToday && !hasSession) cls += ' future-selectable';
+    const clickAttr = hasSession
+      ? `data-session-date="${dateStr}"`
+      : isFutureOrToday ? `data-future-date="${dateStr}"` : '';
     return `<div class="${cls}" ${clickAttr}><span class="cal-day-num">${d}</span>${hasRun ? '<span class="cal-dot"></span>' : ''}</div>`;
   }).join('');
 
@@ -96,6 +100,25 @@ async function renderCalendar(runs) {
   document.querySelectorAll('.cal-cell[data-session-date]').forEach((cell) => {
     cell.addEventListener('click', () => openSessionModal(cell.dataset.sessionDate));
   });
+
+  // Future empty cells — click to target for generation
+  document.querySelectorAll('.cal-cell[data-future-date]').forEach((cell) => {
+    cell.addEventListener('click', () => {
+      targetDate = cell.dataset.futureDate;
+      updateGenerateBtn();
+      document.querySelector('.generate-section').hidden = false;
+      document.getElementById('generate-btn').disabled = false;
+      document.getElementById('generate-btn').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Highlight selected target
+      document.querySelectorAll('.cal-cell.target-date').forEach(c => c.classList.remove('target-date'));
+      cell.classList.add('target-date');
+    });
+  });
+
+  // Restore target highlight if it's still a future date
+  if (targetDate >= todayStr) {
+    document.querySelectorAll(`.cal-cell[data-future-date="${targetDate}"]`).forEach(c => c.classList.add('target-date'));
+  }
 }
 
 function formatDate(dateStr) {
@@ -122,6 +145,10 @@ function formatCost(input_tokens, output_tokens) {
 
 let allRuns = [];
 let currentWorkouts = null;
+function localDateStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+let targetDate = localDateStr();
 
 // ── Run cards ─────────────────────────────────────────────────────────────────
 
@@ -196,7 +223,7 @@ async function generateWorkout(soreness = 'none') {
     const res = await fetch('/api/generate-workout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, units: useImperial ? 'miles' : 'km', soreness }),
+      body: JSON.stringify({ goal, units: useImperial ? 'miles' : 'km', soreness, date: targetDate }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Unknown error');
@@ -470,8 +497,12 @@ document.getElementById('session-modal').addEventListener('click', (e) => {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
-const todayLabel = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
-document.getElementById('btn-text').textContent = `Generate Workout for ${todayLabel}`;
+function updateGenerateBtn() {
+  const d = new Date(targetDate + 'T00:00:00');
+  const label = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+  document.getElementById('btn-text').textContent = `Generate Workout for ${label}`;
+}
+updateGenerateBtn();
 
 document.getElementById('generate-btn').addEventListener('click', openGenerateModal);
 
