@@ -77,11 +77,20 @@ const COACHING_PROMPT = `You are an experienced running coach who adapts to each
 
 // ── Express setup ──────────────────────────────────────────────────────────────
 
+// ── Session secret ─────────────────────────────────────────────────────────────
+// Auto-generate on first run and persist in DB so restarts don't invalidate sessions.
+
+let sessionSecret = getSetting('session_secret');
+if (!sessionSecret) {
+  sessionSecret = require('crypto').randomBytes(32).toString('hex');
+  setSetting('session_secret', sessionSecret);
+}
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'fallback-dev-secret',
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {
