@@ -259,9 +259,7 @@ app.use(requireAuth);
 // ── Onboarding (post-login setup wizard) ──────────────────────────────────────
 
 function isConfigured() {
-  const anthropicKey   = getSetting('anthropic_api_key',   '') || process.env.ANTHROPIC_API_KEY;
-  const stravaRefresh  = getSetting('strava_refresh_token', '') || process.env.STRAVA_REFRESH_TOKEN;
-  return !!(anthropicKey && stravaRefresh);
+  return !!(getSetting('anthropic_api_key') && getSetting('strava_refresh_token'));
 }
 
 function requireConfigured(req, res, next) {
@@ -484,7 +482,7 @@ app.post('/api/onboarding/strava-creds', (req, res) => {
 });
 
 app.get('/strava/connect', (req, res) => {
-  const clientId    = getSetting('strava_client_id', '') || process.env.STRAVA_CLIENT_ID;
+  const clientId    = getSetting('strava_client_id');
   if (!clientId) return res.redirect('/onboarding?step=2&error=missing_creds');
   const callbackUrl = `${req.protocol}://${req.get('host')}/strava/callback`;
   const url = new URL('https://www.strava.com/oauth/authorize');
@@ -500,8 +498,8 @@ app.get('/strava/callback', async (req, res) => {
   const { code, error } = req.query;
   if (error || !code) return res.redirect('/onboarding?step=2&error=strava_denied');
   try {
-    const clientId     = getSetting('strava_client_id',     '') || process.env.STRAVA_CLIENT_ID;
-    const clientSecret = getSetting('strava_client_secret', '') || process.env.STRAVA_CLIENT_SECRET;
+    const clientId     = getSetting('strava_client_id');
+    const clientSecret = getSetting('strava_client_secret');
     const tokenRes = await fetch('https://www.strava.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -520,8 +518,7 @@ app.get('/strava/callback', async (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 function getAnthropicClient() {
-  const key = getSetting('anthropic_api_key', '') || process.env.ANTHROPIC_API_KEY;
-  return new Anthropic({ apiKey: key });
+  return new Anthropic({ apiKey: getSetting('anthropic_api_key') });
 }
 
 // ── Strava token ───────────────────────────────────────────────────────────────
@@ -531,9 +528,9 @@ let tokenExpiry  = 0;
 
 function getStravaCreds() {
   return {
-    clientId:     getSetting('strava_client_id',     '') || process.env.STRAVA_CLIENT_ID,
-    clientSecret: getSetting('strava_client_secret', '') || process.env.STRAVA_CLIENT_SECRET,
-    refreshToken: getSetting('strava_refresh_token', '') || process.env.STRAVA_REFRESH_TOKEN,
+    clientId:     getSetting('strava_client_id'),
+    clientSecret: getSetting('strava_client_secret'),
+    refreshToken: getSetting('strava_refresh_token'),
   };
 }
 

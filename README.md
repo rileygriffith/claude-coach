@@ -29,70 +29,47 @@ An AI-powered running coach that connects to your Strava account and uses Claude
 
 ## Self-hosting with Docker
 
-### 1. Get a Strava API key
-
-1. Go to [strava.com/settings/api](https://www.strava.com/settings/api) and create an application
-2. Note your **Client ID** and **Client Secret**
-3. Set "Authorization Callback Domain" to `localhost`
-
-Run this one-time OAuth flow to get a refresh token.
-
-**Step 1** — Open this URL in your browser (replace `YOUR_CLIENT_ID`):
-```
-https://www.strava.com/oauth/authorize?client_id=YOUR_CLIENT_ID&response_type=code&redirect_uri=http://localhost&approval_prompt=force&scope=activity:read_all
-```
-
-**Step 2** — After authorizing, copy the `code` from the redirect URL:
-```
-http://localhost/?state=&code=XXXXXXXXXXXXXXXX&scope=read,activity:read_all
-```
-
-**Step 3** — Exchange it for a refresh token:
-```bash
-curl -X POST https://www.strava.com/oauth/token \
-  -d client_id=YOUR_CLIENT_ID \
-  -d client_secret=YOUR_CLIENT_SECRET \
-  -d code=YOUR_CODE \
-  -d grant_type=authorization_code
-```
-
-Copy the `refresh_token` from the response.
-
-### 2. Get an Anthropic API key
-
-Sign up at [console.anthropic.com](https://console.anthropic.com) and create an API key.
-
-### 3. Run the container
-
 ```bash
 docker run -d \
   --name running-coach \
   --restart unless-stopped \
   -p 3000:3000 \
   -v ./data:/app/data \
-  -e APP_PASSWORD=yourpassword \
-  -e SESSION_SECRET=anyrandomstring \
   ghcr.io/rileygriffith/running-coach:latest
 ```
 
-Then open `http://localhost:3000`, log in with your password, and enter your Strava and Anthropic credentials in the Settings tab.
+Or with Docker Compose:
 
-### Environment variables
+```yaml
+services:
+  running-coach:
+    image: ghcr.io/rileygriffith/running-coach:latest
+    ports:
+      - 3000:3000
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+```
 
-| Variable | Required | Description |
-|---|---|---|
-| `APP_PASSWORD` | Yes | Password to log in to the app |
-| `SESSION_SECRET` | Yes | Any random string used to sign session cookies |
-| `ANTHROPIC_API_KEY` | Optional | Can be set here or in the Settings tab |
-| `STRAVA_CLIENT_ID` | Optional | Can be set here or in the Settings tab |
-| `STRAVA_CLIENT_SECRET` | Optional | Can be set here or in the Settings tab |
-| `STRAVA_REFRESH_TOKEN` | Optional | Can be set here or in the Settings tab |
+Open `http://your-server:3000` and follow the setup wizard — no environment variables needed.
 
-Credentials set via the Settings tab are stored in the local database and take precedence over environment variables.
+### First-run setup
+
+1. **Create your account** — choose a username and password
+2. **Add your Anthropic API key** — get one from [console.anthropic.com](https://console.anthropic.com)
+3. **Connect Strava:**
+   - Go to [strava.com/settings/api](https://www.strava.com/settings/api) and create an app
+   - Set **Authorization Callback Domain** to your server's hostname (e.g. `coach.yourdomain.com`)
+   - Enter your **Client ID** and **Client Secret** in the setup wizard
+   - Click **Connect Strava** — you'll be redirected to Strava to authorise and brought back automatically
 
 ### Data persistence
 
-The SQLite database lives at `/app/data/coach.db` inside the container. The `-v ./data:/app/data` mount keeps it on your host machine so it survives container updates.
+All data lives in a single SQLite database inside the container at `/app/data`. The volume mount keeps it on your host so it survives container updates and restarts.
+
+### Running behind a reverse proxy
+
+The app is designed to sit behind a reverse proxy (nginx, Caddy, etc.) that handles SSL. HTTPS is strongly recommended when exposing to the internet — secure cookies are enabled automatically outside of development mode.
 
 ---
 
@@ -101,9 +78,8 @@ The SQLite database lives at `/app/data/coach.db` inside the container. The `-v 
 ```bash
 git clone https://github.com/rileygriffith/running-coach
 cd running-coach
-cp .env.example .env
-# Fill in .env with your credentials
 npm install
+echo "NODE_ENV=development" > .env
 npm start
 # → http://localhost:3000
 ```
