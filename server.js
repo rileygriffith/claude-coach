@@ -87,6 +87,7 @@ if (!sessionSecret) {
 }
 
 const app = express();
+app.set('trust proxy', 1); // trust first proxy (nginx, Caddy, NPM, etc.)
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(session({
@@ -96,7 +97,7 @@ app.use(session({
   cookie: {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV !== 'development',
+    secure: 'auto', // automatically use secure cookies over HTTPS, plain over HTTP
     maxAge: 7 * 24 * 60 * 60 * 1000,
   },
 }));
