@@ -1,15 +1,17 @@
-FROM node:22-alpine
+FROM node:22-alpine AS builder
 
-# better-sqlite3 requires native build tools
 RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
-
 COPY package*.json ./
 RUN npm ci --only=production
 
+FROM node:22-alpine
+
+WORKDIR /app
+COPY --from=builder /app/node_modules ./node_modules
 COPY . .
 
-EXPOSE 3000
+EXPOSE 4218
 
 CMD ["node", "server.js"]
