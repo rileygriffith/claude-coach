@@ -255,6 +255,268 @@ app.post('/logout', (req, res) => {
 });
 
 app.use(requireAuth);
+
+// ── Onboarding (post-login setup wizard) ──────────────────────────────────────
+
+function isConfigured() {
+  const anthropicKey   = getSetting('anthropic_api_key',   '') || process.env.ANTHROPIC_API_KEY;
+  const stravaRefresh  = getSetting('strava_refresh_token', '') || process.env.STRAVA_REFRESH_TOKEN;
+  return !!(anthropicKey && stravaRefresh);
+}
+
+function requireConfigured(req, res, next) {
+  const exempt = ['/onboarding', '/strava/connect', '/strava/callback'];
+  if (exempt.some(p => req.path.startsWith(p))) return next();
+  if (req.path.startsWith('/api/onboarding')) return next();
+  if (!isConfigured()) return res.redirect('/onboarding');
+  next();
+}
+
+app.use(requireConfigured);
+
+function onboardingPageHTML(step = 1) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Running Coach — Setup</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d0d0d; color: #e8e8e8;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem 1rem;
+    }
+    .card {
+      background: #161616; border: 1px solid #2a2a2a; border-radius: 14px;
+      padding: 2.5rem 2rem; width: 100%; max-width: 480px;
+    }
+    .logo { font-size: 1.3rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .sub  { color: #888; font-size: 0.85rem; margin-bottom: 2rem; }
+    .steps { display: flex; gap: 0.5rem; margin-bottom: 2rem; }
+    .step-dot {
+      height: 4px; flex: 1; border-radius: 2px; background: #2a2a2a; transition: background 0.2s;
+    }
+    .step-dot.active  { background: #60a5fa; }
+    .step-dot.done    { background: #34d399; }
+    h2 { font-size: 1rem; font-weight: 700; margin-bottom: 0.35rem; }
+    .section-sub { color: #888; font-size: 0.82rem; margin-bottom: 1.25rem; line-height: 1.5; }
+    .instructions {
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+      padding: 1rem 1.1rem; margin-bottom: 1.25rem; font-size: 0.82rem;
+      color: #aaa; line-height: 1.75;
+    }
+    .instructions ol { padding-left: 1.25rem; }
+    .instructions li { margin-bottom: 0.25rem; }
+    .instructions a { color: #60a5fa; text-decoration: none; }
+    .instructions a:hover { text-decoration: underline; }
+    .instructions code {
+      background: #252525; border-radius: 4px; padding: 0.1em 0.4em;
+      font-family: monospace; color: #e8e8e8; font-size: 0.9em;
+    }
+    .field { margin-bottom: 1rem; }
+    label { display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #888; margin-bottom: 0.4rem; }
+    input {
+      width: 100%; background: #1f1f1f; border: 1px solid #2a2a2a; border-radius: 8px;
+      color: #e8e8e8; font-size: 0.95rem; padding: 0.65rem 0.875rem;
+      outline: none; transition: border-color 0.15s; font-family: monospace;
+    }
+    input:focus { border-color: #60a5fa; }
+    .btn {
+      width: 100%; background: #60a5fa; color: #000;
+      border: none; border-radius: 8px; padding: 0.7rem; font-size: 0.95rem;
+      font-weight: 600; cursor: pointer; transition: opacity 0.15s; margin-top: 0.25rem;
+    }
+    .btn:hover:not(:disabled) { opacity: 0.85; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary {
+      background: none; border: 1px solid #3a3a3a; color: #aaa; margin-top: 0.5rem;
+    }
+    .btn-secondary:hover { border-color: #666; color: #e8e8e8; }
+    .error   { color: #f87171; font-size: 0.82rem; margin-top: 0.75rem; }
+    .success { color: #34d399; font-size: 0.82rem; margin-top: 0.75rem; }
+    .hidden  { display: none; }
+    .strava-logo { color: #fc4c02; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Running Coach</div>
+    <p class="sub">Let's get you set up.</p>
+
+    <div class="steps">
+      <div class="step-dot ${step >= 1 ? 'active' : ''}" id="dot-1"></div>
+      <div class="step-dot ${step >= 2 ? 'active' : ''}" id="dot-2"></div>
+    </div>
+
+    <!-- Step 1: Anthropic -->
+    <div id="step-1" class="${step !== 1 ? 'hidden' : ''}">
+      <h2>Anthropic API Key</h2>
+      <p class="section-sub">Used to generate workout recommendations with Claude.</p>
+      <div class="instructions">
+        <ol>
+          <li>Go to <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></li>
+          <li>Sign in or create an account</li>
+          <li>Navigate to <strong>API Keys</strong> and create a new key</li>
+          <li>Paste it below</li>
+        </ol>
+      </div>
+      <div class="field">
+        <label for="anthropic-key">API Key</label>
+        <input id="anthropic-key" type="password" placeholder="sk-ant-…" autocomplete="off" />
+      </div>
+      <button class="btn" id="anthropic-btn">Verify &amp; Continue</button>
+      <p class="error hidden" id="anthropic-error"></p>
+    </div>
+
+    <!-- Step 2: Strava -->
+    <div id="step-2" class="${step !== 2 ? 'hidden' : ''}">
+      <h2><span class="strava-logo">Strava</span> Connection</h2>
+      <p class="section-sub">Connect your Strava account so the coach can see your training history.</p>
+      <div class="instructions">
+        <ol>
+          <li>Go to <a href="https://www.strava.com/settings/api" target="_blank">strava.com/settings/api</a> and create an app</li>
+          <li>For <strong>Authorization Callback Domain</strong> enter: <code id="callback-domain">loading…</code></li>
+          <li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> from your app</li>
+          <li>Paste them below and click <strong>Connect Strava</strong></li>
+        </ol>
+      </div>
+      <div class="field">
+        <label for="strava-id">Client ID</label>
+        <input id="strava-id" type="text" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="strava-secret">Client Secret</label>
+        <input id="strava-secret" type="password" autocomplete="off" />
+      </div>
+      <button class="btn" id="strava-btn">Connect Strava</button>
+      <p class="error hidden" id="strava-error"></p>
+    </div>
+  </div>
+
+  <script>
+    // Show the correct callback domain
+    document.getElementById('callback-domain').textContent = window.location.hostname;
+
+    // ── Step 1: Anthropic ────────────────────────────────────────────────────
+    document.getElementById('anthropic-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('anthropic-btn');
+      const err = document.getElementById('anthropic-error');
+      const key = document.getElementById('anthropic-key').value.trim();
+      err.classList.add('hidden');
+      if (!key) { err.textContent = 'Please enter your API key.'; err.classList.remove('hidden'); return; }
+      btn.disabled = true; btn.textContent = 'Verifying…';
+      try {
+        const r = await fetch('/api/onboarding/anthropic', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key }),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Verification failed.');
+        document.getElementById('step-1').classList.add('hidden');
+        document.getElementById('step-2').classList.remove('hidden');
+        document.getElementById('dot-1').classList.add('done');
+        document.getElementById('dot-2').classList.add('active');
+      } catch (e) {
+        err.textContent = e.message; err.classList.remove('hidden');
+        btn.disabled = false; btn.textContent = 'Verify & Continue';
+      }
+    });
+
+    // ── Step 2: Strava ───────────────────────────────────────────────────────
+    document.getElementById('strava-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('strava-btn');
+      const err = document.getElementById('strava-error');
+      const clientId     = document.getElementById('strava-id').value.trim();
+      const clientSecret = document.getElementById('strava-secret').value.trim();
+      err.classList.add('hidden');
+      if (!clientId || !clientSecret) {
+        err.textContent = 'Both Client ID and Client Secret are required.';
+        err.classList.remove('hidden'); return;
+      }
+      btn.disabled = true; btn.textContent = 'Redirecting to Strava…';
+      try {
+        const r = await fetch('/api/onboarding/strava-creds', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_id: clientId, client_secret: clientSecret }),
+        });
+        if (!r.ok) throw new Error('Failed to save credentials.');
+        window.location.href = '/strava/connect';
+      } catch (e) {
+        err.textContent = e.message; err.classList.remove('hidden');
+        btn.disabled = false; btn.textContent = 'Connect Strava';
+      }
+    });
+  </script>
+</body>
+</html>`;
+}
+
+app.get('/onboarding', (req, res) => {
+  if (isConfigured()) return res.redirect('/');
+  const step = parseInt(req.query.step) || 1;
+  res.send(onboardingPageHTML(step));
+});
+
+app.post('/api/onboarding/anthropic', async (req, res) => {
+  const { key } = req.body;
+  if (!key || !key.startsWith('sk-ant-')) return res.status(400).json({ error: 'That doesn\'t look like a valid Anthropic API key.' });
+  try {
+    // Lightweight validation — count tokens on a tiny message
+    const client = new Anthropic({ apiKey: key });
+    await client.messages.countTokens({ model: 'claude-sonnet-4-6', messages: [{ role: 'user', content: 'hi' }] });
+    setSetting('anthropic_api_key', key);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(401).json({ error: 'API key is invalid or has no access. Check and try again.' });
+  }
+});
+
+app.post('/api/onboarding/strava-creds', (req, res) => {
+  const { client_id, client_secret } = req.body;
+  if (!client_id || !client_secret) return res.status(400).json({ error: 'Missing credentials.' });
+  setSetting('strava_client_id',     client_id.trim());
+  setSetting('strava_client_secret', client_secret.trim());
+  cachedToken = null; tokenExpiry = 0;
+  res.json({ ok: true });
+});
+
+app.get('/strava/connect', (req, res) => {
+  const clientId    = getSetting('strava_client_id', '') || process.env.STRAVA_CLIENT_ID;
+  if (!clientId) return res.redirect('/onboarding?step=2&error=missing_creds');
+  const callbackUrl = `${req.protocol}://${req.get('host')}/strava/callback`;
+  const url = new URL('https://www.strava.com/oauth/authorize');
+  url.searchParams.set('client_id',     clientId);
+  url.searchParams.set('redirect_uri',  callbackUrl);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('approval_prompt', 'auto');
+  url.searchParams.set('scope',         'activity:read_all');
+  res.redirect(url.toString());
+});
+
+app.get('/strava/callback', async (req, res) => {
+  const { code, error } = req.query;
+  if (error || !code) return res.redirect('/onboarding?step=2&error=strava_denied');
+  try {
+    const clientId     = getSetting('strava_client_id',     '') || process.env.STRAVA_CLIENT_ID;
+    const clientSecret = getSetting('strava_client_secret', '') || process.env.STRAVA_CLIENT_SECRET;
+    const tokenRes = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, grant_type: 'authorization_code' }),
+    });
+    const tokens = await tokenRes.json();
+    if (!tokens.refresh_token) throw new Error('No refresh token received.');
+    setSetting('strava_refresh_token', tokens.refresh_token);
+    cachedToken = null; tokenExpiry = 0;
+    res.redirect('/');
+  } catch (err) {
+    res.redirect('/onboarding?step=2&error=strava_failed');
+  }
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 function getAnthropicClient() {
