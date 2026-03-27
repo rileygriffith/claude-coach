@@ -31,19 +31,19 @@ An AI-powered running coach that connects to your Strava account and uses Claude
 
 ```bash
 docker run -d \
-  --name running-coach \
+  --name run-coach \
   --restart unless-stopped \
   -p 3000:3000 \
   -v ./data:/app/data \
-  ghcr.io/rileygriffith/running-coach:latest
+  ghcr.io/rileygriffith/run-coach:latest
 ```
 
 Or with Docker Compose:
 
 ```yaml
 services:
-  running-coach:
-    image: ghcr.io/rileygriffith/running-coach:latest
+  run-coach:
+    image: ghcr.io/rileygriffith/run-coach:latest
     ports:
       - 3000:3000
     volumes:
@@ -76,8 +76,8 @@ The app is designed to sit behind a reverse proxy (nginx, Caddy, etc.) that hand
 ## Running locally
 
 ```bash
-git clone https://github.com/rileygriffith/running-coach
-cd running-coach
+git clone https://github.com/rileygriffith/run-coach
+cd run-coach
 npm install
 echo "NODE_ENV=development" > .env
 npm start
