@@ -14,4 +14,5 @@ COPY . .
 
 EXPOSE 4218
 
+ENV NODE_ENV=production
 CMD ["node", "server.js"]

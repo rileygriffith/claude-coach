@@ -26,7 +26,6 @@ function unitLabel() {
 }
 
 function buildMonthGrid(year, month, runDates, todayStr, unresolvedDates = new Set(), sessionDates = new Set()) {
-  const monthName = new Date(year, month, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
@@ -57,13 +56,10 @@ function buildMonthGrid(year, month, runDates, todayStr, unresolvedDates = new S
   }).join('');
 
   return `
-    <div class="cal-month">
-      <div class="cal-month-label">${monthName}</div>
-      <div class="cal-grid">
-        ${dayLabels}
-        ${blanks}
-        ${cells}
-      </div>
+    <div class="cal-grid">
+      ${dayLabels}
+      ${blanks}
+      ${cells}
     </div>
   `;
 }
@@ -71,13 +67,12 @@ function buildMonthGrid(year, month, runDates, todayStr, unresolvedDates = new S
 async function renderCalendar(runs) {
   const runDates = new Set(runs.map((r) => r.date.slice(0, 10)));
   const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const todayStr = localDateStr(today);
 
-  const curYear = today.getFullYear();
-  const curMonth = today.getMonth();
-  const prevDate = new Date(curYear, curMonth - 1, 1);
-  const prevYear = prevDate.getFullYear();
-  const prevMonth = prevDate.getMonth();
+  if (calViewYear === null) {
+    calViewYear = today.getFullYear();
+    calViewMonth = today.getMonth();
+  }
 
   let unresolvedDates = new Set();
   let sessionDates = new Set();
@@ -90,12 +85,30 @@ async function renderCalendar(runs) {
     sessionDates = new Set((await sessionRes.json()).dates);
   } catch (_) {}
 
+  const monthName = new Date(calViewYear, calViewMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
   document.getElementById('calendar').innerHTML = `
-    <div class="cal-months-row">
-      ${buildMonthGrid(prevYear, prevMonth, runDates, todayStr, unresolvedDates, sessionDates)}
-      ${buildMonthGrid(curYear, curMonth, runDates, todayStr, unresolvedDates, sessionDates)}
+    <div class="cal-nav">
+      <button class="cal-nav-btn" id="cal-prev">&#8249;</button>
+      <span class="cal-month-label">${monthName}</span>
+      <button class="cal-nav-btn" id="cal-next">&#8250;</button>
     </div>
+    ${buildMonthGrid(calViewYear, calViewMonth, runDates, todayStr, unresolvedDates, sessionDates)}
   `;
+
+  document.getElementById('cal-prev').addEventListener('click', () => {
+    const d = new Date(calViewYear, calViewMonth - 1, 1);
+    calViewYear = d.getFullYear();
+    calViewMonth = d.getMonth();
+    renderCalendar(allRuns);
+  });
+
+  document.getElementById('cal-next').addEventListener('click', () => {
+    const d = new Date(calViewYear, calViewMonth + 1, 1);
+    calViewYear = d.getFullYear();
+    calViewMonth = d.getMonth();
+    renderCalendar(allRuns);
+  });
 
   document.querySelectorAll('.cal-cell[data-session-date]').forEach((cell) => {
     cell.addEventListener('click', () => openSessionModal(cell.dataset.sessionDate));
@@ -145,6 +158,8 @@ function formatCost(input_tokens, output_tokens) {
 
 let allRuns = [];
 let currentWorkouts = null;
+let calViewYear = null;
+let calViewMonth = null;
 function localDateStr(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -317,11 +332,13 @@ function resultPickerHTML(currentResult, currentNotes) {
   const active = (val) => currentResult === val ? ' active' : '';
   return `
     <div class="result-picker">
-      <span class="result-picker-label">How did it go?</span>
-      <div class="result-toggle">
-        <button class="result-btn hit${active('hit')}" data-value="hit">✓ Hit targets</button>
-        <button class="result-btn partial${active('partial')}" data-value="partial">~ Close</button>
-        <button class="result-btn missed${active('missed')}" data-value="missed">✕ Missed</button>
+      <div class="result-picker-row">
+        <span class="result-picker-label">How did it go?</span>
+        <div class="result-toggle">
+          <button class="result-btn hit${active('hit')}" data-value="hit">✓ Hit targets</button>
+          <button class="result-btn partial${active('partial')}" data-value="partial">~ Close</button>
+          <button class="result-btn missed${active('missed')}" data-value="missed">✕ Missed</button>
+        </div>
       </div>
       <textarea class="result-notes" placeholder="Add a note…" rows="2">${currentNotes || ''}</textarea>
     </div>

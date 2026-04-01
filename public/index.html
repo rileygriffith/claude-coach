@@ -18,16 +18,20 @@
         </div>
       </div>
       <div class="header-right">
-        <div class="unit-toggle">
-          <button id="unit-km" class="unit-btn">km</button>
-          <button id="unit-mi" class="unit-btn active">mi</button>
-        </div>
         <div class="user-menu" id="user-menu">
           <button class="user-menu-btn" id="user-menu-btn" aria-expanded="false">
             <span id="user-menu-username"></span>
             <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <div class="user-menu-dropdown" id="user-menu-dropdown" hidden>
+            <div class="user-menu-units">
+              <span class="user-menu-units-label">Units</span>
+              <div class="unit-toggle">
+                <button id="unit-km" class="unit-btn">km</button>
+                <button id="unit-mi" class="unit-btn active">mi</button>
+              </div>
+            </div>
+            <div class="user-menu-divider"></div>
             <button class="user-menu-item" data-settings="settings-group-training">Training</button>
             <button class="user-menu-item" data-settings="settings-group-credentials">Credentials</button>
             <button class="user-menu-item" data-settings="settings-group-account">Account</button>
