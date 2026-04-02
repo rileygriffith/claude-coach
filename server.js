@@ -517,7 +517,7 @@ app.get('/strava/callback', async (req, res) => {
   }
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'dist')));
 
 function getAnthropicClient() {
   return new Anthropic({ apiKey: getSetting('anthropic_api_key') });
@@ -1000,6 +1000,11 @@ app.get('/api/raw-activity', async (_req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// SPA fallback — must be after all API routes
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 // ── Start ──────────────────────────────────────────────────────────────────────

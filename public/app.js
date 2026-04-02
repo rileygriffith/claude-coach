@@ -681,17 +681,21 @@ fetch('/api/me').then(r => r.json()).then(({ username }) => {
 
 const settingsPanel = document.getElementById('settings-panel');
 const mainSections  = document.querySelectorAll('.app > .section:not(#settings-panel)');
+const sectionSnapshot = new Map();
 
 function openSettings() {
+  mainSections.forEach(s => {
+    sectionSnapshot.set(s, s.hidden);
+    s.hidden = true;
+  });
   settingsPanel.hidden = false;
-  mainSections.forEach(s => s.hidden = true);
   document.querySelector('header').hidden = true;
   window.scrollTo(0, 0);
 }
 
 function closeSettings() {
   settingsPanel.hidden = true;
-  mainSections.forEach(s => { if (s.id !== 'workouts-section') s.hidden = false; });
+  mainSections.forEach(s => { s.hidden = sectionSnapshot.get(s) ?? false; });
   document.querySelector('header').hidden = false;
 }
 
