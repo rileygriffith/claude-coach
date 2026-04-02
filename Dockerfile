@@ -19,7 +19,6 @@ WORKDIR /app
 COPY --from=backend-deps /app/node_modules ./node_modules
 COPY --from=frontend-build /app/dist ./dist
 COPY server.js ./
-COPY workouts.json ./
 ENV NODE_ENV=production
 EXPOSE 4218
 CMD ["node", "server.js"]
