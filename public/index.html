@@ -19,30 +19,10 @@
         </div>
       </div>
       <div class="header-right">
-        <div class="user-menu" id="user-menu">
-          <button class="user-menu-btn" id="user-menu-btn" aria-expanded="false">
-            <span id="user-menu-username"></span>
-            <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          <div class="user-menu-dropdown" id="user-menu-dropdown" hidden>
-            <div class="user-menu-units">
-              <span class="user-menu-units-label">Units</span>
-              <div class="unit-toggle">
-                <button id="unit-km" class="unit-btn">km</button>
-                <button id="unit-mi" class="unit-btn active">mi</button>
-              </div>
-            </div>
-            <div class="user-menu-divider"></div>
-            <button class="user-menu-item" data-settings="settings-group-training">Training</button>
-            <button class="user-menu-item" data-settings="settings-group-credentials">Credentials</button>
-            <button class="user-menu-item" data-settings="settings-group-account">Account</button>
-            <button class="user-menu-item" data-settings="settings-group-data">Data</button>
-            <div class="user-menu-divider"></div>
-            <form method="POST" action="/logout">
-              <button type="submit" class="user-menu-signout">Sign out</button>
-            </form>
-          </div>
-        </div>
+        <span id="user-menu-username" class="header-username"></span>
+        <button id="settings-open-btn" class="settings-icon-btn" aria-label="Settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
       </div>
     </header>
 
@@ -54,74 +34,103 @@
 
     <!-- Settings panel -->
     <section id="settings-panel" class="section settings-panel" hidden>
-      <button id="settings-close-btn" class="settings-close-btn" aria-label="Close">✕</button>
-      <div class="settings-group" id="settings-group-training">
-        <div class="settings-group-label">Training</div>
-        <div class="settings-field">
-          <label for="goal-input">Goal</label>
-          <textarea id="goal-input" class="goal-input" rows="2" placeholder="e.g. Run a sub-2hr half marathon by June…"></textarea>
-        </div>
-        <div class="settings-field settings-row">
-          <div>
-            <label for="race-distance-input">Race target</label>
-            <select id="race-distance-input" class="settings-select">
-              <option value="">No race</option>
-              <option value="5K">5K</option>
-              <option value="10K">10K</option>
-              <option value="15K">15K</option>
-              <option value="Half Marathon">Half Marathon</option>
-              <option value="Marathon">Marathon</option>
-              <option value="Ultra">Ultra</option>
-            </select>
-          </div>
-          <div>
-            <label for="race-date-input">Race date</label>
-            <input id="race-date-input" type="text" class="settings-input" placeholder="Pick a date" readonly />
-          </div>
-        </div>
-        <div class="settings-field">
-          <label for="cross-training-input">Cross-training</label>
-          <textarea id="cross-training-input" class="goal-input" rows="2" placeholder="e.g. I lift weights 3–4x per week, mostly lower body…"></textarea>
-        </div>
-        <div class="settings-field">
-          <label for="injury-notes-input">Injury notes</label>
-          <textarea id="injury-notes-input" class="goal-input" rows="2" placeholder="e.g. Recovering from mild plantar fasciitis in left foot…"></textarea>
-        </div>
+      <div class="settings-page-header">
+        <button id="settings-close-btn" class="settings-back-btn" aria-label="Back">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          Back
+        </button>
+        <span class="settings-page-title">Settings</span>
       </div>
+      <div class="settings-layout">
+        <nav class="settings-nav">
+          <button class="settings-nav-item active" data-section="training">Training</button>
+          <button class="settings-nav-item" data-section="credentials">Credentials</button>
+          <button class="settings-nav-item" data-section="account">Account</button>
+          <button class="settings-nav-item" data-section="data">Data</button>
+          <button class="settings-nav-item" data-section="units">Units</button>
+          <div class="settings-nav-spacer"></div>
+          <form method="POST" action="/logout">
+            <button type="submit" class="settings-nav-signout">Sign out</button>
+          </form>
+        </nav>
+        <div class="settings-content">
+          <div id="settings-group-training" class="settings-group">
+            <div class="settings-group-label">Training</div>
+            <div class="settings-field">
+              <label for="goal-input">Goal</label>
+              <textarea id="goal-input" class="goal-input" rows="2" placeholder="e.g. Run a sub-2hr half marathon by June…"></textarea>
+            </div>
+            <div class="settings-field settings-row">
+              <div>
+                <label for="race-distance-input">Race target</label>
+                <select id="race-distance-input" class="settings-select">
+                  <option value="">No race</option>
+                  <option value="5K">5K</option>
+                  <option value="10K">10K</option>
+                  <option value="15K">15K</option>
+                  <option value="Half Marathon">Half Marathon</option>
+                  <option value="Marathon">Marathon</option>
+                  <option value="Ultra">Ultra</option>
+                </select>
+              </div>
+              <div>
+                <label for="race-date-input">Race date</label>
+                <input id="race-date-input" type="text" class="settings-input" placeholder="Pick a date" readonly />
+              </div>
+            </div>
+            <div class="settings-field">
+              <label for="cross-training-input">Cross-training</label>
+              <textarea id="cross-training-input" class="goal-input" rows="2" placeholder="e.g. I lift weights 3–4x per week, mostly lower body…"></textarea>
+            </div>
+            <div class="settings-field">
+              <label for="injury-notes-input">Injury notes</label>
+              <textarea id="injury-notes-input" class="goal-input" rows="2" placeholder="e.g. Recovering from mild plantar fasciitis in left foot…"></textarea>
+            </div>
+          </div>
 
-      <div class="settings-group" id="settings-group-credentials">
-        <div class="settings-group-label">Credentials</div>
-        <div class="settings-field">
-          <label for="anthropic-key-input">Anthropic API key</label>
-          <input id="anthropic-key-input" type="password" class="settings-input" placeholder="sk-ant-…" autocomplete="off" />
-        </div>
-        <div class="settings-field">
-          <label>Strava</label>
-          <div id="strava-status" class="strava-status">
-            <span id="strava-status-text"></span>
-            <button id="strava-reconnect-btn" class="settings-action-btn">Reconnect Strava</button>
+          <div id="settings-group-credentials" class="settings-group" hidden>
+            <div class="settings-group-label">Credentials</div>
+            <div class="settings-field">
+              <label for="anthropic-key-input">Anthropic API key</label>
+              <input id="anthropic-key-input" type="password" class="settings-input" placeholder="sk-ant-…" autocomplete="off" />
+            </div>
+            <div class="settings-field">
+              <label>Strava</label>
+              <div id="strava-status" class="strava-status">
+                <span id="strava-status-text"></span>
+                <button id="strava-reconnect-btn" class="settings-action-btn">Reconnect Strava</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="settings-group-account" class="settings-group" hidden>
+            <div class="settings-group-label">Account</div>
+            <div class="settings-field">
+              <label for="current-password-input">Current password</label>
+              <input id="current-password-input" type="password" class="settings-input" autocomplete="current-password" />
+            </div>
+            <div class="settings-field">
+              <label for="new-password-input">New password</label>
+              <input id="new-password-input" type="password" class="settings-input" autocomplete="new-password" />
+            </div>
+            <button id="change-password-btn" class="settings-action-btn">Change password</button>
+            <p id="change-password-msg" class="settings-msg" hidden></p>
+          </div>
+
+          <div id="settings-group-data" class="settings-group" hidden>
+            <div class="settings-group-label">Data</div>
+            <button id="sync-btn" class="settings-action-btn">Sync from Strava now</button>
+            <p id="sync-msg" class="settings-msg" hidden></p>
+          </div>
+
+          <div id="settings-group-units" class="settings-group" hidden>
+            <div class="settings-group-label">Units</div>
+            <div class="unit-toggle">
+              <button id="unit-km" class="unit-btn">km</button>
+              <button id="unit-mi" class="unit-btn active">mi</button>
+            </div>
           </div>
         </div>
-      </div>
-
-      <div class="settings-group" id="settings-group-account">
-        <div class="settings-group-label">Account</div>
-        <div class="settings-field">
-          <label for="current-password-input">Current password</label>
-          <input id="current-password-input" type="password" class="settings-input" autocomplete="current-password" />
-        </div>
-        <div class="settings-field">
-          <label for="new-password-input">New password</label>
-          <input id="new-password-input" type="password" class="settings-input" autocomplete="new-password" />
-        </div>
-        <button id="change-password-btn" class="settings-action-btn">Change password</button>
-        <p id="change-password-msg" class="settings-msg" hidden></p>
-      </div>
-
-      <div class="settings-group" id="settings-group-data">
-        <div class="settings-group-label">Data</div>
-        <button id="sync-btn" class="settings-action-btn">Sync from Strava now</button>
-        <p id="sync-msg" class="settings-msg" hidden></p>
       </div>
     </section>
 

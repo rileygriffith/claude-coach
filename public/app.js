@@ -677,54 +677,40 @@ fetch('/api/me').then(r => r.json()).then(({ username }) => {
   document.getElementById('user-menu-username').textContent = username;
 });
 
-const userMenuBtn      = document.getElementById('user-menu-btn');
-const userMenuDropdown = document.getElementById('user-menu-dropdown');
-
-// ── Settings ──────────────────────────────────────────────────────────────────
+// ── Settings page ─────────────────────────────────────────────────────────────
 
 const settingsPanel = document.getElementById('settings-panel');
-const settingsGroups = ['training', 'credentials', 'account', 'data'];
-let activeSettingsSection = null;
+const mainSections  = document.querySelectorAll('.app > .section:not(#settings-panel)');
 
-function openSettingsSection(section) {
-  settingsGroups.forEach(g => {
-    document.getElementById(`settings-group-${g}`).hidden = (g !== section);
-  });
+function openSettings() {
   settingsPanel.hidden = false;
-  activeSettingsSection = section;
+  mainSections.forEach(s => s.hidden = true);
+  document.querySelector('header').hidden = true;
+  window.scrollTo(0, 0);
 }
 
-function closeSettingsPanel() {
+function closeSettings() {
   settingsPanel.hidden = true;
-  activeSettingsSection = null;
+  mainSections.forEach(s => { if (s.id !== 'workouts-section') s.hidden = false; });
+  document.querySelector('header').hidden = false;
 }
 
-document.getElementById('settings-close-btn').addEventListener('click', closeSettingsPanel);
+document.getElementById('settings-open-btn').addEventListener('click', openSettings);
+document.getElementById('settings-close-btn').addEventListener('click', closeSettings);
 
-userMenuBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  const open = !userMenuDropdown.hidden;
-  userMenuDropdown.hidden = open;
-  userMenuBtn.setAttribute('aria-expanded', String(!open));
-});
+const settingsSections = ['training', 'credentials', 'account', 'data', 'units'];
 
-document.addEventListener('click', () => {
-  userMenuDropdown.hidden = true;
-  userMenuBtn.setAttribute('aria-expanded', 'false');
-});
-
-document.querySelectorAll('[data-settings]').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    userMenuDropdown.hidden = true;
-    userMenuBtn.setAttribute('aria-expanded', 'false');
-    const section = btn.dataset.settings.replace('settings-group-', '');
-    if (activeSettingsSection === section) {
-      closeSettingsPanel();
-    } else {
-      openSettingsSection(section);
-    }
+function switchSettingsTab(section) {
+  settingsSections.forEach(s => {
+    document.getElementById(`settings-group-${s}`).hidden = (s !== section);
   });
+  document.querySelectorAll('.settings-nav-item').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.section === section);
+  });
+}
+
+document.querySelectorAll('.settings-nav-item').forEach(btn => {
+  btn.addEventListener('click', () => switchSettingsTab(btn.dataset.section));
 });
 
 async function saveSetting(key, value) {

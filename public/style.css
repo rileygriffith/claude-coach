@@ -1,3 +1,6 @@
+/* ── Global ─────────────────────────────────────────────────────────────────── */
+[hidden] { display: none !important; }
+
 /* ── Design tokens ──────────────────────────────────────────────────────────── */
 :root {
   --bg:          #0d0d0d;
@@ -69,115 +72,143 @@ header {
 .settings-btn:hover { color: var(--text); border-color: var(--text-muted); }
 .settings-btn.active { color: var(--accent); border-color: var(--accent); }
 
-.user-menu { position: relative; }
+.header-username {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
 
-.user-menu-btn {
+.settings-icon-btn {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 0.8rem;
-  font-family: inherit;
-  padding: 0.35rem 0.65rem;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
   transition: color 0.15s, border-color 0.15s;
 }
-.user-menu-btn:hover { color: var(--text); border-color: var(--text-muted); }
+.settings-icon-btn:hover { color: var(--text); border-color: var(--text-muted); }
 
-.user-menu-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  min-width: 120px;
-  z-index: 100;
-  overflow: hidden;
+.settings-panel {
+  padding: 1.25rem 1.5rem;
 }
 
-.user-menu-item {
+.settings-page-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-back-btn {
   background: none;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: inherit;
+  font-size: 0.82rem;
+  padding: 0;
+  transition: color 0.15s;
+}
+.settings-back-btn:hover { color: var(--text); }
+
+.settings-page-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.settings-layout {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  min-width: 130px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  padding-right: 1.5rem;
+  gap: 2px;
+}
+
+.settings-nav-item {
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
   font-family: inherit;
   font-size: 0.85rem;
-  padding: 0.6rem 0.875rem;
-  width: 100%;
+  padding: 0.5rem 0.75rem;
   text-align: left;
   transition: background 0.15s, color 0.15s;
 }
-.user-menu-item:hover { background: var(--surface); color: var(--text); }
+.settings-nav-item:hover { background: var(--surface-2); color: var(--text); }
+.settings-nav-item.active { background: var(--surface-2); color: var(--text); font-weight: 600; }
 
-.user-menu-units {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 0.875rem;
-  gap: 0.75rem;
-}
+.settings-nav-spacer { flex: 1; min-height: 1.5rem; }
 
-.user-menu-units-label {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.user-menu-units .unit-toggle {
-  background: var(--surface);
-}
-
-.user-menu-divider {
-  border-top: 1px solid var(--border);
-  margin: 0.25rem 0;
-}
-
-.user-menu-signout {
+.settings-nav-signout {
   background: none;
   border: none;
+  border-radius: 6px;
   color: var(--red);
   cursor: pointer;
   font-family: inherit;
   font-size: 0.85rem;
-  padding: 0.6rem 0.875rem;
-  width: 100%;
+  padding: 0.5rem 0.75rem;
   text-align: left;
+  width: 100%;
   transition: background 0.15s;
 }
-.user-menu-signout:hover { background: rgba(248,113,113,0.08); }
+.settings-nav-signout:hover { background: rgba(248,113,113,0.08); }
 
-.settings-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.25rem 1.5rem;
-  position: relative;
+.settings-content {
+  flex: 1;
+  min-width: 0;
 }
 
-.settings-close-btn {
-  position: absolute;
-  top: 0.875rem;
-  right: 0.875rem;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.85rem;
-  line-height: 1;
-  padding: 0.25rem;
-  transition: color 0.15s;
+@media (max-width: 600px) {
+  .settings-layout {
+    flex-direction: column;
+    gap: 0;
+  }
+  .settings-nav {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding-right: 0;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.25rem;
+    min-width: 0;
+    width: 100%;
+    gap: 2px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .settings-nav::-webkit-scrollbar { display: none; }
+  .settings-nav-spacer { display: none; }
+  .settings-nav-signout { white-space: nowrap; }
+  .settings-nav-item { white-space: nowrap; }
 }
-.settings-close-btn:hover { color: var(--text); }
 
 .settings-group {
-  margin-bottom: 1.75rem;
-  padding-bottom: 1.75rem;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
 }
-.settings-group:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
 
 .settings-group-label {
   font-size: 0.78rem;
@@ -886,6 +917,8 @@ header {
 
 .modal-body {
   overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
   flex: 1;
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.15) transparent;
@@ -1217,10 +1250,31 @@ header {
 
 /* ── Mobile overrides ────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
+  .app {
+    padding: 1.25rem 1rem 3rem;
+  }
   .generate-btn {
     width: 100%;
   }
   .generate-section {
     align-items: stretch;
+  }
+
+  /* Stack workout cards vertically on mobile */
+  .carousel {
+    position: static;
+  }
+  .carousel-track {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .workout-card,
+  .workout-card.carousel-active {
+    display: block;
+  }
+  .carousel-btn,
+  .carousel-dots {
+    display: none;
   }
 }
