@@ -8,4 +8,6 @@ services:
     volumes:
       # Persist logged workouts outside the container
       - ./workouts.json:/app/workouts.json
+      # Read-only access to Statistics for Strava DB for best effort PRs (optional)
+      - /home/riley-griffith/mediastack/config/strava/database/strava.db:/data/strava.db:ro
     restart: unless-stopped

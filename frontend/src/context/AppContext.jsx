@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { localDateStr } from '../utils'
-import { getMe, getActivities, getTodaySession, getSessionDates, getUnresolvedSessions } from '../api'
+import { getMe, getActivities, getTodaySession, getSessionDates, getUnresolvedSessions, getPRs } from '../api'
 
 const AppContext = createContext(null)
 
@@ -15,6 +15,8 @@ export function AppProvider({ children }) {
   const [unresolvedDates, setUnresolvedDates] = useState(new Set())
   const [sessionDates, setSessionDates] = useState(new Set())
   const [calendarVersion, setCalendarVersion] = useState(0)
+  const [prs, setPRs] = useState({})
+  const [prSource, setPRSource] = useState(null)
 
   function setUseImperial(val) {
     localStorage.setItem('useImperial', val ? 'true' : 'false')
@@ -50,6 +52,16 @@ export function AppProvider({ children }) {
       .then(r => r && r.json())
       .then(data => { if (data && data.dates) setUnresolvedDates(new Set(data.dates)) })
       .catch(() => {})
+
+    getPRs()
+      .then(r => r && r.json())
+      .then(data => {
+        if (data) {
+          setPRs(data.prs || {})
+          setPRSource(data.source || null)
+        }
+      })
+      .catch(() => {})
   }, [])
 
   const value = {
@@ -62,6 +74,8 @@ export function AppProvider({ children }) {
     sessionDates, setSessionDates,
     calendarVersion,
     refreshCalendar,
+    prs,
+    prSource,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

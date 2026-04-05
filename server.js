@@ -568,9 +568,8 @@ async function syncFromStrava() {
 
   const token  = await getStravaToken();
   const latest = db.prepare('SELECT date FROM runs ORDER BY date DESC LIMIT 1').get();
-  const after  = latest
-    ? Math.floor(new Date(latest.date).getTime() / 1000)
-    : Math.floor(Date.now() / 1000) - 6 * 30 * 24 * 60 * 60;
+  // On first sync fetch all history (epoch 0); subsequently fetch only new runs since the last stored run.
+  const after  = latest ? Math.floor(new Date(latest.date).getTime() / 1000) : 0;
 
   let page = 1, fetched = [];
   while (true) {
@@ -602,13 +601,74 @@ async function syncFromStrava() {
 
   setSetting('last_synced_at', Date.now().toString());
   console.log(`[sync] ${fetched.length} new run(s) added to DB`);
+
+  computePRs();
+}
+
+function formatPRTime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function computePRs() {
+  if (loadPRsFromStravaStatsDB()) return;
+  computePRsFromRunsDB();
+}
+
+// Query the Statistics for Strava SQLite DB (mounted read-only) for best efforts.
+function loadPRsFromStravaStatsDB() {
+  const STRAVA_STATS_DB = '/data/strava.db';
+  if (!require('fs').existsSync(STRAVA_STATS_DB)) return false;
+  try {
+    const statsDb = require('better-sqlite3')(STRAVA_STATS_DB, { readonly: true });
+    const targets = [
+      { key: 'pr_1mile',    dist: 1609  },
+      { key: 'pr_5k',       dist: 5000  },
+      { key: 'pr_10k',      dist: 10000 },
+      { key: 'pr_half',     dist: 21097 },
+      { key: 'pr_marathon', dist: 42195 },
+    ];
+    for (const { key, dist } of targets) {
+      const row = statsDb.prepare(
+        "SELECT MIN(time_in_seconds) as best FROM activity_best_effort WHERE sport_type = 'Run' AND distance_in_meter = ?"
+      ).get(dist);
+      if (row?.best) setSetting(key, String(row.best));
+    }
+    statsDb.close();
+    console.log('[sync] PRs loaded from Statistics for Strava DB');
+    return true;
+  } catch (err) {
+    console.warn('[sync] Statistics for Strava DB unavailable:', err.message);
+    return false;
+  }
+}
+
+// Fallback: compute PRs from our own runs DB by finding the fastest run within each distance window.
+function computePRsFromRunsDB() {
+  const targets = [
+    { key: 'pr_1mile',    meters: 1609,  low: 1500,  high: 1800  },
+    { key: 'pr_5k',       meters: 5000,  low: 4800,  high: 5500  },
+    { key: 'pr_10k',      meters: 10000, low: 9500,  high: 11000 },
+    { key: 'pr_half',     meters: 21097, low: 20000, high: 22500 },
+    { key: 'pr_marathon', meters: 42195, low: 41000, high: 43500 },
+  ];
+  for (const { key, meters, low, high } of targets) {
+    const best = db.prepare(
+      'SELECT elapsed_time, distance FROM runs WHERE distance >= ? AND distance <= ? ORDER BY elapsed_time / distance ASC LIMIT 1'
+    ).get(low, high);
+    if (best) {
+      const scaled = Math.round(best.elapsed_time * (meters / best.distance));
+      setSetting(key, String(scaled));
+    }
+  }
+  console.log('[sync] PRs computed from runs DB (fallback)');
 }
 
 function getRunsFromDB() {
-  const sixMonthsAgo = new Date();
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-  return db.prepare('SELECT * FROM runs WHERE date > ? ORDER BY date DESC')
-    .all(sixMonthsAgo.toISOString());
+  return db.prepare('SELECT * FROM runs ORDER BY date DESC').all();
 }
 
 async function getActivities() {
@@ -677,6 +737,14 @@ function buildPromptContent(runs, units = 'miles', soreness = 'none', targetDate
   const raceDistance  = getSetting('race_distance',  '');
   const raceDate      = getSetting('race_date',      '');
 
+  const prLines = [
+    getSetting('pr_1mile')    && `1 mile: ${formatPRTime(parseInt(getSetting('pr_1mile')))}`,
+    getSetting('pr_5k')       && `5K: ${formatPRTime(parseInt(getSetting('pr_5k')))}`,
+    getSetting('pr_10k')      && `10K: ${formatPRTime(parseInt(getSetting('pr_10k')))}`,
+    getSetting('pr_half')     && `Half marathon: ${formatPRTime(parseInt(getSetting('pr_half')))}`,
+    getSetting('pr_marathon') && `Marathon: ${formatPRTime(parseInt(getSetting('pr_marathon')))}`,
+  ].filter(Boolean);
+
   const goalSection = goal
     ? `\n\n━━━ ATHLETE'S CURRENT GOAL ━━━\n${goal}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
     : '';
@@ -690,6 +758,9 @@ function buildPromptContent(runs, units = 'miles', soreness = 'none', targetDate
     : '';
   const injurySection = injuryNotes
     ? `\n\n━━━ INJURY / HEALTH NOTES ━━━\n${injuryNotes}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
+    : '';
+  const prSection = prLines.length
+    ? `\n\n━━━ PERSONAL RECORDS ━━━\n${prLines.join('\n')}\n━━━━━━━━━━━━━━━━━━━━━━━\n`
     : '';
   const sorenessSection = soreness === 'yes'
     ? `\n\nNote: The athlete is reporting lower body soreness today. Take this into account when recommending intensity and workout type.`
@@ -705,7 +776,7 @@ function buildPromptContent(runs, units = 'miles', soreness = 'none', targetDate
     : '';
 
   return (
-    `You are generating this workout for ${workoutDateFormatted}.\n\nHere are my recent runs:\n${runSummary}${goalSection}${raceSection}${crossTrainingSection}${injurySection}${sorenessSection}${futureDateSection}\n\n` +
+    `You are generating this workout for ${workoutDateFormatted}.\n\nHere are my recent runs:\n${runSummary}${goalSection}${raceSection}${crossTrainingSection}${injurySection}${prSection}${sorenessSection}${futureDateSection}\n\n` +
     `${unitInstruction} ` +
     `Based on this training history, generate one recommended option for the athlete's next session, plus two alternatives. ` +
     `If the training load, recovery signals, or reported soreness suggest the athlete needs rest, recommend a rest day. ` +
@@ -739,6 +810,26 @@ app.get('/api/settings', (_req, res) => {
   const s = {};
   rows.forEach(r => { if (!INTERNAL_KEYS.includes(r.key)) s[r.key] = r.value; });
   res.json(s);
+});
+
+app.get('/api/prs', (_req, res) => {
+  const keys = ['pr_1mile', 'pr_5k', 'pr_10k', 'pr_half', 'pr_marathon'];
+  const prs = {};
+  for (const key of keys) {
+    const val = getSetting(key);
+    if (val) prs[key] = parseInt(val);
+  }
+  const STRAVA_STATS_DB = '/data/strava.db';
+  let source = 'runs-db';
+  if (require('fs').existsSync(STRAVA_STATS_DB)) {
+    try {
+      const statsDb = require('better-sqlite3')(STRAVA_STATS_DB, { readonly: true });
+      statsDb.prepare('SELECT 1 FROM activity_best_effort LIMIT 1').get();
+      statsDb.close();
+      source = 'statistics-for-strava';
+    } catch (_) {}
+  }
+  res.json({ prs, source });
 });
 
 app.post('/api/settings', (req, res) => {

@@ -99,6 +99,10 @@ export async function getCostEstimate(payload) {
   })
 }
 
+export async function getPRs() {
+  return apiFetch('/api/prs')
+}
+
 export async function getPromptPreview(payload) {
   return apiFetch('/api/prompt-preview', {
     method: 'POST',

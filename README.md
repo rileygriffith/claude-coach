@@ -12,6 +12,7 @@ An AI-powered running coach that connects to your Strava account and uses Claude
 - Tracks which workout you selected each day
 - Plan workouts for future dates on the calendar
 - Persists your goal, race target, cross-training notes, and injury context
+- Displays personal records (1 mile, 5K, 10K, half, marathon) and includes them in the coaching prompt
 - Cost estimate before every generation (~$0.02 per request)
 - Self-hostable with Docker, protected by a password
 
@@ -66,6 +67,20 @@ Open `http://your-server:4218` and follow the setup wizard — no environment va
 ### Data persistence
 
 All data lives in a single SQLite database inside the container at `/app/data`. The volume mount keeps it on your host so it survives container updates and restarts.
+
+### Personal records (optional: Statistics for Strava integration)
+
+Personal records are shown on the dashboard and included in the coaching prompt so Claude can set accurate target paces. By default they are calculated from your run history (fastest run of approximately each standard distance).
+
+For GPS-accurate best efforts calculated from raw activity streams, you can mount the [Statistics for Strava](https://github.com/robiningelbrecht/statistics-for-strava) SQLite database read-only:
+
+```yaml
+volumes:
+  - ./data:/app/data
+  - /path/to/statistics-for-strava/strava.db:/data/strava.db:ro
+```
+
+When the mount is present the app queries it directly and falls back to the runs-DB calculation if it is unavailable. The **Settings → Data** page shows which source is active.
 
 ### Running behind a reverse proxy
 

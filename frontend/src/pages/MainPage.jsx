@@ -5,6 +5,7 @@ import GenerateSection from '../components/GenerateSection'
 import WorkoutsSection from '../components/WorkoutsSection'
 import Calendar from '../components/Calendar'
 import RecentRuns from '../components/RecentRuns'
+import PersonalRecords from '../components/PersonalRecords'
 import GenerateModal from '../modals/GenerateModal'
 import SessionModal from '../modals/SessionModal'
 
@@ -22,6 +23,7 @@ export default function MainPage() {
         <h2 className="section-label">Training Calendar</h2>
         <Calendar onSessionClick={setSessionModalDate} />
       </section>
+      <PersonalRecords />
       <section className="section">
         <h2 className="section-label">Recent Runs</h2>
         <RecentRuns />
