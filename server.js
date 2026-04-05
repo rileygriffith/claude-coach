@@ -633,7 +633,7 @@ function loadPRsFromStravaStatsDB() {
     ];
     for (const { key, dist } of targets) {
       const row = statsDb.prepare(
-        "SELECT MIN(time_in_seconds) as best FROM activity_best_effort WHERE sport_type = 'Run' AND distance_in_meter = ?"
+        "SELECT MIN(timeInSeconds) as best FROM ActivityBestEffort WHERE sportType = 'Run' AND distanceInMeter = ?"
       ).get(dist);
       if (row?.best) setSetting(key, String(row.best));
     }
@@ -828,7 +828,7 @@ app.get('/api/prs', (_req, res) => {
       const prs = {};
       for (const { key, dist } of targets) {
         const row = statsDb.prepare(
-          "SELECT MIN(time_in_seconds) as best FROM activity_best_effort WHERE sport_type = 'Run' AND distance_in_meter = ?"
+          "SELECT MIN(timeInSeconds) as best FROM ActivityBestEffort WHERE sportType = 'Run' AND distanceInMeter = ?"
         ).get(dist);
         if (row?.best) prs[key] = row.best;
       }
