@@ -779,9 +779,9 @@ function buildPromptContent(runs, units = 'miles', soreness = 'none', targetDate
     `You are generating this workout for ${workoutDateFormatted}.\n\nHere are my recent runs:\n${runSummary}${goalSection}${raceSection}${crossTrainingSection}${injurySection}${prSection}${sorenessSection}${futureDateSection}\n\n` +
     `${unitInstruction} ` +
     `Based on this training history, generate one recommended option for the athlete's next session, plus two alternatives. ` +
-    `If the training load, recovery signals, or reported soreness suggest the athlete needs rest, recommend a rest day. ` +
     `Alternatives can differ in intensity, duration, or type — choose what would genuinely serve the athlete best. ` +
-    `For each workout provide specific, concrete targets — exact paces, distances, rep structures, rest intervals. Be precise, not vague.\n\n` +
+    `For each workout provide specific, concrete targets — exact paces, distances, rep structures, rest intervals. Be precise, not vague. ` +
+    `Structure steps based on what the workout actually requires — not every workout needs multiple phases.\n\n` +
     `Respond ONLY with valid JSON in exactly this format:\n` +
     `{\n` +
     `  "recommended": "option_a",\n` +
