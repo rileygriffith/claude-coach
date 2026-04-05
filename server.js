@@ -70,6 +70,25 @@ function setSetting(key, value) {
   db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
 }
 
+// ── Personal record targets ────────────────────────────────────────────────────
+// Distances tracked by Statistics for Strava. label is shown in the UI and prompt.
+// low/high are used for fallback calculation from whole-run distances.
+
+const PR_TARGETS = [
+  { key: 'pr_400m',     dist: 400,   label: '400m',         low: 380,   high: 430   },
+  { key: 'pr_half_mi',  dist: 805,   label: '½ Mile',       low: 780,   high: 850   },
+  { key: 'pr_1k',       dist: 1000,  label: '1K',           low: 950,   high: 1100  },
+  { key: 'pr_1mile',    dist: 1609,  label: '1 Mile',       low: 1500,  high: 1800  },
+  { key: 'pr_2mile',    dist: 3219,  label: '2 Mile',       low: 3000,  high: 3500  },
+  { key: 'pr_5k',       dist: 5000,  label: '5K',           low: 4800,  high: 5500  },
+  { key: 'pr_10k',      dist: 10000, label: '10K',          low: 9500,  high: 11000 },
+  { key: 'pr_15k',      dist: 15000, label: '15K',          low: 14000, high: 16000 },
+  { key: 'pr_10mile',   dist: 16093, label: '10 Mile',      low: 15500, high: 17000 },
+  { key: 'pr_20k',      dist: 20000, label: '20K',          low: 19000, high: 21000 },
+  { key: 'pr_half',     dist: 21097, label: 'Half Marathon', low: 20000, high: 22500 },
+  { key: 'pr_marathon', dist: 42195, label: 'Marathon',     low: 41000, high: 43500 },
+];
+
 // ── Coaching system prompt ─────────────────────────────────────────────────────
 
 const COACHING_PROMPT = `You are an experienced running coach who adapts to each athlete's goals — whether that's building a base, getting faster, training for a race, or simply running consistently. You follow the 80/20 polarized training method: approximately 80% of training at low intensity (easy, conversational pace, Zone 1-2) and 20% at high intensity (Zone 4-5), avoiding the gray zone in between. Always give precise, concrete targets based on the athlete's recent performance data and stated goal. If a goal is provided, let it shape the type and specificity of the workouts you prescribe.`;
@@ -624,14 +643,7 @@ function loadPRsFromStravaStatsDB() {
   if (!require('fs').existsSync(STRAVA_STATS_DB)) return false;
   try {
     const statsDb = require('better-sqlite3')(STRAVA_STATS_DB, { readonly: true });
-    const targets = [
-      { key: 'pr_1mile',    dist: 1609  },
-      { key: 'pr_5k',       dist: 5000  },
-      { key: 'pr_10k',      dist: 10000 },
-      { key: 'pr_half',     dist: 21097 },
-      { key: 'pr_marathon', dist: 42195 },
-    ];
-    for (const { key, dist } of targets) {
+    for (const { key, dist } of PR_TARGETS) {
       const row = statsDb.prepare(
         "SELECT MIN(timeInSeconds) as best FROM ActivityBestEffort WHERE sportType = 'Run' AND distanceInMeter = ?"
       ).get(dist);
@@ -648,14 +660,7 @@ function loadPRsFromStravaStatsDB() {
 
 // Fallback: compute PRs from our own runs DB by finding the fastest run within each distance window.
 function computePRsFromRunsDB() {
-  const targets = [
-    { key: 'pr_1mile',    meters: 1609,  low: 1500,  high: 1800  },
-    { key: 'pr_5k',       meters: 5000,  low: 4800,  high: 5500  },
-    { key: 'pr_10k',      meters: 10000, low: 9500,  high: 11000 },
-    { key: 'pr_half',     meters: 21097, low: 20000, high: 22500 },
-    { key: 'pr_marathon', meters: 42195, low: 41000, high: 43500 },
-  ];
-  for (const { key, meters, low, high } of targets) {
+  for (const { key, dist: meters, low, high } of PR_TARGETS) {
     const best = db.prepare(
       'SELECT elapsed_time, distance FROM runs WHERE distance >= ? AND distance <= ? ORDER BY elapsed_time / distance ASC LIMIT 1'
     ).get(low, high);
@@ -737,13 +742,12 @@ function buildPromptContent(runs, units = 'miles', soreness = 'none', targetDate
   const raceDistance  = getSetting('race_distance',  '');
   const raceDate      = getSetting('race_date',      '');
 
-  const prLines = [
-    getSetting('pr_1mile')    && `1 mile: ${formatPRTime(parseInt(getSetting('pr_1mile')))}`,
-    getSetting('pr_5k')       && `5K: ${formatPRTime(parseInt(getSetting('pr_5k')))}`,
-    getSetting('pr_10k')      && `10K: ${formatPRTime(parseInt(getSetting('pr_10k')))}`,
-    getSetting('pr_half')     && `Half marathon: ${formatPRTime(parseInt(getSetting('pr_half')))}`,
-    getSetting('pr_marathon') && `Marathon: ${formatPRTime(parseInt(getSetting('pr_marathon')))}`,
-  ].filter(Boolean);
+  const prLines = PR_TARGETS
+    .map(({ key, label }) => {
+      const val = getSetting(key);
+      return val ? `${label}: ${formatPRTime(parseInt(val))}` : null;
+    })
+    .filter(Boolean);
 
   const goalSection = goal
     ? `\n\n━━━ ATHLETE'S CURRENT GOAL ━━━\n${goal}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
@@ -814,19 +818,12 @@ app.get('/api/settings', (_req, res) => {
 
 app.get('/api/prs', (_req, res) => {
   const STRAVA_STATS_DB = process.env.STRAVA_STATS_DB || '/data/strava.db';
-  const targets = [
-    { key: 'pr_1mile',    dist: 1609  },
-    { key: 'pr_5k',       dist: 5000  },
-    { key: 'pr_10k',      dist: 10000 },
-    { key: 'pr_half',     dist: 21097 },
-    { key: 'pr_marathon', dist: 42195 },
-  ];
 
   if (require('fs').existsSync(STRAVA_STATS_DB)) {
     try {
       const statsDb = require('better-sqlite3')(STRAVA_STATS_DB, { readonly: true });
       const prs = {};
-      for (const { key, dist } of targets) {
+      for (const { key, dist } of PR_TARGETS) {
         const row = statsDb.prepare(
           "SELECT MIN(timeInSeconds) as best FROM ActivityBestEffort WHERE sportType = 'Run' AND distanceInMeter = ?"
         ).get(dist);
@@ -839,7 +836,7 @@ app.get('/api/prs', (_req, res) => {
 
   // Fallback: read cached values written during the last sync
   const prs = {};
-  for (const { key } of targets) {
+  for (const { key } of PR_TARGETS) {
     const val = getSetting(key);
     if (val) prs[key] = parseInt(val);
   }

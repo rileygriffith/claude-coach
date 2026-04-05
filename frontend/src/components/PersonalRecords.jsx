@@ -8,27 +8,34 @@ function formatPRTime(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-const PR_LABELS = [
-  { key: 'pr_1mile',    label: '1 Mile' },
-  { key: 'pr_5k',       label: '5K' },
-  { key: 'pr_10k',      label: '10K' },
-  { key: 'pr_half',     label: 'Half' },
-  { key: 'pr_marathon', label: 'Marathon' },
-]
+const PR_LABELS = {
+  pr_400m:     '400m',
+  pr_half_mi:  '½ Mile',
+  pr_1k:       '1K',
+  pr_1mile:    '1 Mile',
+  pr_2mile:    '2 Mile',
+  pr_5k:       '5K',
+  pr_10k:      '10K',
+  pr_15k:      '15K',
+  pr_10mile:   '10 Mile',
+  pr_20k:      '20K',
+  pr_half:     'Half',
+  pr_marathon: 'Marathon',
+}
 
 export default function PersonalRecords() {
   const { prs } = useApp()
 
-  const entries = PR_LABELS.filter(({ key }) => prs[key])
+  const entries = Object.keys(PR_LABELS).filter(key => prs[key])
   if (!entries.length) return null
 
   return (
     <section className="section">
       <h2 className="section-label">Personal Records</h2>
       <div className="runs-grid">
-        {entries.map(({ key, label }) => (
+        {entries.map(key => (
           <div key={key} className="run-card" style={{ textAlign: 'center' }}>
-            <div className="run-date">{label}</div>
+            <div className="run-date">{PR_LABELS[key]}</div>
             <div>
               <span className="run-distance">{formatPRTime(prs[key])}</span>
             </div>
