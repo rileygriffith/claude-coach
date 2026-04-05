@@ -620,7 +620,7 @@ function computePRs() {
 
 // Query the Statistics for Strava SQLite DB (mounted read-only) for best efforts.
 function loadPRsFromStravaStatsDB() {
-  const STRAVA_STATS_DB = '/data/strava.db';
+  const STRAVA_STATS_DB = process.env.STRAVA_STATS_DB || '/data/strava.db';
   if (!require('fs').existsSync(STRAVA_STATS_DB)) return false;
   try {
     const statsDb = require('better-sqlite3')(STRAVA_STATS_DB, { readonly: true });
@@ -819,7 +819,7 @@ app.get('/api/prs', (_req, res) => {
     const val = getSetting(key);
     if (val) prs[key] = parseInt(val);
   }
-  const STRAVA_STATS_DB = '/data/strava.db';
+  const STRAVA_STATS_DB = process.env.STRAVA_STATS_DB || '/data/strava.db';
   let source = 'runs-db';
   if (require('fs').existsSync(STRAVA_STATS_DB)) {
     try {

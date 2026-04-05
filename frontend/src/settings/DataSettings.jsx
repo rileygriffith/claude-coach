@@ -28,31 +28,38 @@ export default function DataSettings() {
 
   return (
     <>
-      <div className="settings-group">
-        <div className="settings-group-label">Data</div>
-        <button
-          className="settings-action-btn"
-          onClick={handleSync}
-          disabled={syncing}
-        >
-          {syncing ? 'Syncing…' : 'Sync from Strava now'}
-        </button>
-        {syncMsg && (
-          <p className="settings-msg" style={{ color: syncOk ? 'var(--accent)' : 'var(--text-muted)' }}>
-            {syncMsg}
-          </p>
-        )}
+      <div className="settings-group" style={{ marginBottom: '2rem' }}>
+        <div className="settings-group-label">Strava</div>
+        <div className="strava-status">
+          <button
+            className="settings-action-btn"
+            onClick={handleSync}
+            disabled={syncing}
+          >
+            {syncing ? 'Syncing…' : 'Sync from Strava now'}
+          </button>
+          {syncMsg && (
+            <p className="settings-msg" style={{ color: syncOk ? 'var(--accent)' : 'var(--red)', marginTop: 0 }}>
+              {syncMsg}
+            </p>
+          )}
+        </div>
       </div>
+
       <div className="settings-group">
-        <div className="settings-group-label">Personal Records Source</div>
+        <div className="settings-group-label">Statistics for Strava</div>
         {prSource === null ? (
-          <p className="settings-msg">Loading…</p>
+          <p className="settings-msg" style={{ color: 'var(--text-muted)' }}>Loading…</p>
         ) : (
-          <p className="settings-msg" style={{ color: prStatusOk ? 'var(--accent)' : 'var(--text-muted)' }}>
-            {prStatusOk
-              ? 'Statistics for Strava — GPS-accurate best efforts'
-              : 'Calculated from run history — mount Statistics for Strava DB for more accurate PRs'}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+              background: prStatusOk ? 'var(--accent)' : 'var(--text-muted)',
+            }} />
+            <span style={{ fontSize: '0.88rem', color: prStatusOk ? 'var(--text)' : 'var(--text-muted)' }}>
+              {prStatusOk ? 'Connected' : 'Not connected'}
+            </span>
+          </div>
         )}
       </div>
     </>
