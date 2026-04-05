@@ -633,7 +633,7 @@ function loadPRsFromStravaStatsDB() {
     ];
     for (const { key, dist } of targets) {
       const row = statsDb.prepare(
-        "SELECT MIN(time_in_seconds) as best FROM ActivityBestEffort WHERE sport_type = 'Run' AND distance_in_meter = ?"
+        "SELECT MIN(time_in_seconds) as best FROM activity_best_effort WHERE sport_type = 'Run' AND distance_in_meter = ?"
       ).get(dist);
       if (row?.best) setSetting(key, String(row.best));
     }
@@ -813,23 +813,37 @@ app.get('/api/settings', (_req, res) => {
 });
 
 app.get('/api/prs', (_req, res) => {
-  const keys = ['pr_1mile', 'pr_5k', 'pr_10k', 'pr_half', 'pr_marathon'];
-  const prs = {};
-  for (const key of keys) {
-    const val = getSetting(key);
-    if (val) prs[key] = parseInt(val);
-  }
   const STRAVA_STATS_DB = process.env.STRAVA_STATS_DB || '/data/strava.db';
-  let source = 'runs-db';
+  const targets = [
+    { key: 'pr_1mile',    dist: 1609  },
+    { key: 'pr_5k',       dist: 5000  },
+    { key: 'pr_10k',      dist: 10000 },
+    { key: 'pr_half',     dist: 21097 },
+    { key: 'pr_marathon', dist: 42195 },
+  ];
+
   if (require('fs').existsSync(STRAVA_STATS_DB)) {
     try {
       const statsDb = require('better-sqlite3')(STRAVA_STATS_DB, { readonly: true });
-      statsDb.prepare('SELECT 1 FROM ActivityBestEffort LIMIT 1').get();
+      const prs = {};
+      for (const { key, dist } of targets) {
+        const row = statsDb.prepare(
+          "SELECT MIN(time_in_seconds) as best FROM activity_best_effort WHERE sport_type = 'Run' AND distance_in_meter = ?"
+        ).get(dist);
+        if (row?.best) prs[key] = row.best;
+      }
       statsDb.close();
-      source = 'statistics-for-strava';
+      return res.json({ prs, source: 'statistics-for-strava' });
     } catch (_) {}
   }
-  res.json({ prs, source });
+
+  // Fallback: read cached values written during the last sync
+  const prs = {};
+  for (const { key } of targets) {
+    const val = getSetting(key);
+    if (val) prs[key] = parseInt(val);
+  }
+  res.json({ prs, source: 'runs-db' });
 });
 
 app.post('/api/settings', (req, res) => {
