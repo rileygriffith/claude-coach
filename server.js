@@ -633,7 +633,7 @@ function loadPRsFromStravaStatsDB() {
     ];
     for (const { key, dist } of targets) {
       const row = statsDb.prepare(
-        "SELECT MIN(time_in_seconds) as best FROM activity_best_effort WHERE sport_type = 'Run' AND distance_in_meter = ?"
+        "SELECT MIN(time_in_seconds) as best FROM ActivityBestEffort WHERE sport_type = 'Run' AND distance_in_meter = ?"
       ).get(dist);
       if (row?.best) setSetting(key, String(row.best));
     }
@@ -824,7 +824,7 @@ app.get('/api/prs', (_req, res) => {
   if (require('fs').existsSync(STRAVA_STATS_DB)) {
     try {
       const statsDb = require('better-sqlite3')(STRAVA_STATS_DB, { readonly: true });
-      statsDb.prepare('SELECT 1 FROM activity_best_effort LIMIT 1').get();
+      statsDb.prepare('SELECT 1 FROM ActivityBestEffort LIMIT 1').get();
       statsDb.close();
       source = 'statistics-for-strava';
     } catch (_) {}
