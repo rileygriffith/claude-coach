@@ -3,12 +3,6 @@ import { useApp } from '../context/AppContext'
 import { getSession, deleteSession, selectWorkoutForDate, generateWorkout, getTodaySession, setSessionResult } from '../api'
 import { localDateStr } from '../utils'
 
-const RESULT_DEFAULTS = {
-  hit: 'Hit all targets as prescribed.',
-  partial: 'Hit some targets but not all.',
-  missed: 'Could not hit the prescribed targets.',
-}
-
 function isRestDay(workout) {
   return workout && workout.type && workout.type.toLowerCase().includes('rest')
 }
@@ -23,7 +17,7 @@ function ResultSection({ data, onSave, showToggle = true }) {
       onSave(null, '')
     } else {
       setResult(value)
-      onSave(value, notes.trim() || RESULT_DEFAULTS[value] || '')
+      onSave(value, notes.trim())
     }
   }
 
