@@ -28,7 +28,7 @@ function ResultSection({ data, onSave, showToggle = true }) {
   }
 
   function handleBlur() {
-    if (result) onSave(result, notes.trim() || RESULT_DEFAULTS[result] || '')
+    if (result) onSave(result, notes.trim())
   }
 
   return (
