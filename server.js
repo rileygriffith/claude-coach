@@ -1016,7 +1016,7 @@ app.get('/api/today-session', (_req, res) => {
 
 app.post('/api/select-workout', (req, res) => {
   const { selected, date } = req.body;
-  if (!['option_a', 'option_b', 'option_c', 'none'].includes(selected)) {
+  if (selected !== null && !['option_a', 'option_b', 'option_c', 'none'].includes(selected)) {
     return res.status(400).json({ error: 'Invalid selection' });
   }
   const targetDate = date || localDateStr();

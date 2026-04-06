@@ -13,7 +13,7 @@ function isRestDay(workout) {
   return workout && workout.type && workout.type.toLowerCase().includes('rest')
 }
 
-function ResultSection({ data, onSave }) {
+function ResultSection({ data, onSave, showToggle = true }) {
   const [result, setResult] = useState(data.result || null)
   const [notes, setNotes] = useState(data.result_notes || '')
 
@@ -34,7 +34,7 @@ function ResultSection({ data, onSave }) {
   return (
     <div className="modal-result-section">
       <div className="modal-result-header">How did it go?</div>
-      <div className="result-toggle">
+      {showToggle && <div className="result-toggle">
         <button
           className={`result-btn hit${result === 'hit' ? ' active' : ''}`}
           onClick={() => handleResultClick('hit')}
@@ -47,7 +47,7 @@ function ResultSection({ data, onSave }) {
           className={`result-btn missed${result === 'missed' ? ' active' : ''}`}
           onClick={() => handleResultClick('missed')}
         >✕ Missed</button>
-      </div>
+      </div>}
       <textarea
         className="result-notes"
         placeholder="Add a note…"
@@ -79,7 +79,8 @@ export default function SessionModal({ date, onClose }) {
   }, [date])
 
   async function handleSelect(key) {
-    await selectWorkoutForDate(key, date)
+    const newSelected = data.selected === key ? null : key
+    await selectWorkoutForDate(newSelected, date)
     refreshCalendar()
     if (date === today) {
       const res = await getTodaySession()
@@ -88,7 +89,7 @@ export default function SessionModal({ date, onClose }) {
         if (d && d.session) setTodaySession(d.session)
       }
     }
-    setData(d => ({ ...d, selected: key }))
+    setData(d => ({ ...d, selected: newSelected }))
     setShowAlternatives(false)
   }
 
@@ -147,7 +148,7 @@ export default function SessionModal({ date, onClose }) {
             const hasSelection = data.selected && data.selected !== null
             const selectedWorkout = hasSelection && !noneChosen ? data[data.selected] : null
             const showResult = selectedWorkout && !isRestDay(selectedWorkout)
-            const visibleOptions = hasSelection && !showAlternatives
+            const visibleOptions = hasSelection && !noneChosen && !showAlternatives
               ? options.filter(key => key === data.selected)
               : options
             return (
@@ -188,7 +189,7 @@ export default function SessionModal({ date, onClose }) {
                     {showAlternatives ? 'Hide alternatives' : 'Switch workout ↕'}
                   </button>
                 )}
-                {(!hasSelection || showAlternatives) && (
+                {(!hasSelection || showAlternatives || noneChosen) && (
                   <button
                     className={`modal-none-btn${noneChosen ? ' modal-none-chosen' : ''}`}
                     onClick={() => !noneChosen && handleSelect('none')}
@@ -196,11 +197,12 @@ export default function SessionModal({ date, onClose }) {
                     {noneChosen ? '✓ Did something else' : 'None of the above — did something else'}
                   </button>
                 )}
-                {showResult && !showAlternatives && (
+                {(showResult || noneChosen) && !showAlternatives && (
                   <ResultSection
                     key={data.selected}
                     data={data}
                     onSave={handleSaveResult}
+                    showToggle={!noneChosen}
                   />
                 )}
               </>
