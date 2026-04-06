@@ -275,6 +275,8 @@ app.post('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/login'));
 });
 
+app.get('/icon.png', (_req, res) => res.sendFile(path.join(__dirname, 'dist', 'icon.png')));
+
 app.use(requireAuth);
 
 // ── Onboarding (post-login setup wizard) ──────────────────────────────────────
