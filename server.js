@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express    = require('express');
 const session    = require('express-session');
+const SqliteStore = require('better-sqlite3-session-store')(session);
 const path       = require('path');
 const Database   = require('better-sqlite3');
 const Anthropic  = require('@anthropic-ai/sdk');
@@ -110,6 +111,7 @@ app.set('trust proxy', 1); // trust first proxy (nginx, Caddy, NPM, etc.)
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(session({
+  store: new SqliteStore({ client: db }),
   secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
