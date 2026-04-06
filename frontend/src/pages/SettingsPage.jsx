@@ -3,15 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import TrainingSettings from '../settings/TrainingSettings'
 import CredentialsSettings from '../settings/CredentialsSettings'
 import AccountSettings from '../settings/AccountSettings'
-import DataSettings from '../settings/DataSettings'
 import UnitsSettings from '../settings/UnitsSettings'
 
-const TABS = ['training', 'credentials', 'account', 'data', 'units']
+const TABS = ['training', 'data', 'account', 'units']
 const TAB_LABELS = {
   training: 'Training',
-  credentials: 'Credentials',
-  account: 'Account',
   data: 'Data',
+  account: 'Account',
   units: 'Units',
 }
 
@@ -22,9 +20,8 @@ export default function SettingsPage() {
   function renderContent() {
     switch (activeTab) {
       case 'training': return <TrainingSettings />
-      case 'credentials': return <CredentialsSettings />
+      case 'data': return <CredentialsSettings />
       case 'account': return <AccountSettings />
-      case 'data': return <DataSettings />
       case 'units': return <UnitsSettings />
       default: return null
     }
