@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { localDateStr } from '../utils'
-import { getMe, getActivities, getTodaySession, getSessionDates, getUnresolvedSessions, getPRs } from '../api'
+import { getMe, getActivities, getTodaySession, getSessionDates, getUnresolvedSessions, getPRs, getPendingResults } from '../api'
 
 const AppContext = createContext(null)
 
@@ -17,6 +17,7 @@ export function AppProvider({ children }) {
   const [calendarVersion, setCalendarVersion] = useState(0)
   const [prs, setPRs] = useState({})
   const [prSource, setPRSource] = useState(null)
+  const [pendingResultDates, setPendingResultDates] = useState([])
 
   function setUseImperial(val) {
     localStorage.setItem('useImperial', val ? 'true' : 'false')
@@ -62,6 +63,11 @@ export function AppProvider({ children }) {
         }
       })
       .catch(() => {})
+
+    getPendingResults()
+      .then(r => r && r.json())
+      .then(data => { if (data?.dates) setPendingResultDates(data.dates) })
+      .catch(() => {})
   }, [])
 
   const value = {
@@ -76,6 +82,7 @@ export function AppProvider({ children }) {
     refreshCalendar,
     prs,
     prSource,
+    pendingResultDates,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

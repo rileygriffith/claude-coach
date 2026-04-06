@@ -16,7 +16,7 @@ export default function MainPage() {
   return (
     <div className="app">
       <Header />
-      <UnresolvedBanner />
+      <UnresolvedBanner onOpenSession={setSessionModalDate} />
       <GenerateSection onOpenModal={() => setGenerateModalOpen(true)} />
       <WorkoutsSection />
       <section className="section">

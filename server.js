@@ -699,7 +699,7 @@ function buildRunSummary(runs, sessionMap = {}) {
                       : entry?.result === 'missed'  ? 'missed targets'
                       : null;
     const resultStr = resultLabel
-      ? ` — ${resultLabel}${entry.result_notes ? `: ${entry.result_notes}` : ''}`
+      ? `; result: ${resultLabel}${entry.result_notes ? `: ${entry.result_notes}` : ''}`
       : '';
     return (
       `- ${date}: ${distMi}mi, pace ${pace}` +
@@ -1088,6 +1088,18 @@ app.get('/api/unresolved-sessions', (_req, res) => {
     .filter(s => db.prepare("SELECT id FROM runs WHERE date LIKE ? LIMIT 1").get(`${s.date}%`))
     .map(s => s.date);
   res.json({ dates: unresolved });
+});
+
+// ── Pending results (workout selected but hit/miss not logged) ─────────────────
+
+app.get('/api/pending-results', (_req, res) => {
+  const sessions = db.prepare(
+    "SELECT date, selected FROM workout_sessions WHERE selected IS NOT NULL AND selected != 'none' AND result IS NULL"
+  ).all();
+  const pending = sessions
+    .filter(s => db.prepare("SELECT id FROM runs WHERE date LIKE ? LIMIT 1").get(`${s.date}%`))
+    .map(s => s.date);
+  res.json({ dates: pending });
 });
 
 // ── Raw activity debug ─────────────────────────────────────────────────────────

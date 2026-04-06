@@ -103,6 +103,10 @@ export async function getPRs() {
   return apiFetch('/api/prs')
 }
 
+export async function getPendingResults() {
+  return apiFetch('/api/pending-results')
+}
+
 export async function getPromptPreview(payload) {
   return apiFetch('/api/prompt-preview', {
     method: 'POST',

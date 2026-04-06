@@ -13,49 +13,46 @@ function isRestDay(workout) {
   return workout && workout.type && workout.type.toLowerCase().includes('rest')
 }
 
-function ResultPicker({ currentResult, currentNotes, onSave }) {
-  const [result, setResult] = useState(currentResult || null)
-  const [notes, setNotes] = useState(currentNotes || '')
+function ResultSection({ data, onSave }) {
+  const [result, setResult] = useState(data.result || null)
+  const [notes, setNotes] = useState(data.result_notes || '')
 
   function handleResultClick(value) {
-    setResult(value)
-    let newNotes = notes
-    if (!notes.trim()) {
-      newNotes = RESULT_DEFAULTS[value] || ''
-      setNotes(newNotes)
+    if (result === value) {
+      setResult(null)
+      onSave(null, '')
+    } else {
+      setResult(value)
+      onSave(value, notes.trim() || RESULT_DEFAULTS[value] || '')
     }
-    onSave(value, newNotes)
   }
 
   function handleBlur() {
-    onSave(result, notes)
+    if (result) onSave(result, notes.trim() || RESULT_DEFAULTS[result] || '')
   }
 
   return (
-    <div className="result-picker">
-      <div className="result-picker-row">
-        <span className="result-picker-label">How did it go?</span>
-        <div className="result-toggle">
-          <button
-            className={`result-btn hit${result === 'hit' ? ' active' : ''}`}
-            onClick={(e) => { e.stopPropagation(); handleResultClick('hit') }}
-          >✓ Hit targets</button>
-          <button
-            className={`result-btn partial${result === 'partial' ? ' active' : ''}`}
-            onClick={(e) => { e.stopPropagation(); handleResultClick('partial') }}
-          >~ Close</button>
-          <button
-            className={`result-btn missed${result === 'missed' ? ' active' : ''}`}
-            onClick={(e) => { e.stopPropagation(); handleResultClick('missed') }}
-          >✕ Missed</button>
-        </div>
+    <div className="modal-result-section">
+      <div className="modal-result-header">How did it go?</div>
+      <div className="result-toggle">
+        <button
+          className={`result-btn hit${result === 'hit' ? ' active' : ''}`}
+          onClick={() => handleResultClick('hit')}
+        >✓ Hit targets</button>
+        <button
+          className={`result-btn partial${result === 'partial' ? ' active' : ''}`}
+          onClick={() => handleResultClick('partial')}
+        >~ Close</button>
+        <button
+          className={`result-btn missed${result === 'missed' ? ' active' : ''}`}
+          onClick={() => handleResultClick('missed')}
+        >✕ Missed</button>
       </div>
       <textarea
         className="result-notes"
         placeholder="Add a note…"
         rows={2}
         value={notes}
-        onClick={(e) => e.stopPropagation()}
         onChange={(e) => setNotes(e.target.value)}
         onBlur={handleBlur}
       />
@@ -68,6 +65,7 @@ export default function SessionModal({ date, onClose }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showAlternatives, setShowAlternatives] = useState(false)
 
   const today = localDateStr()
 
@@ -90,7 +88,8 @@ export default function SessionModal({ date, onClose }) {
         if (d && d.session) setTodaySession(d.session)
       }
     }
-    onClose()
+    setData(d => ({ ...d, selected: key }))
+    setShowAlternatives(false)
   }
 
   async function handleDelete() {
@@ -119,8 +118,9 @@ export default function SessionModal({ date, onClose }) {
     }
   }
 
-  async function handleSaveResult(key, result, notes) {
+  async function handleSaveResult(result, notes) {
     await setSessionResult(date, result, notes)
+    setData(d => ({ ...d, result, result_notes: notes }))
   }
 
   function handleBackdropClick(e) {
@@ -144,14 +144,19 @@ export default function SessionModal({ date, onClose }) {
           {data && (() => {
             const options = ['option_a', 'option_b', 'option_c']
             const noneChosen = data.selected === 'none'
+            const hasSelection = data.selected && data.selected !== null
+            const selectedWorkout = hasSelection && !noneChosen ? data[data.selected] : null
+            const showResult = selectedWorkout && !isRestDay(selectedWorkout)
+            const visibleOptions = hasSelection && !showAlternatives
+              ? options.filter(key => key === data.selected)
+              : options
             return (
               <>
-                {options.map(key => {
+                {visibleOptions.map(key => {
                   const w = data[key]
                   if (!w) return null
                   const isSelected = data.selected === key
                   const isRec = key === data.recommended
-                  const showResult = isSelected && !isRestDay(w)
                   return (
                     <div
                       key={key}
@@ -172,24 +177,32 @@ export default function SessionModal({ date, onClose }) {
                       </div>
                       <div className="workout-pace">Target: {w.target_pace}</div>
                       <div className="workout-rationale">{w.rationale}</div>
-                      {showResult && (
-                        <div className="modal-result-inline" onClick={e => e.stopPropagation()}>
-                          <ResultPicker
-                            currentResult={data.result}
-                            currentNotes={data.result_notes}
-                            onSave={(result, notes) => handleSaveResult(key, result, notes)}
-                          />
-                        </div>
-                      )}
                     </div>
                   )
                 })}
-                <button
-                  className={`modal-none-btn${noneChosen ? ' modal-none-chosen' : ''}`}
-                  onClick={() => !noneChosen && handleSelect('none')}
-                >
-                  {noneChosen ? '✓ Did something else' : 'None of the above — did something else'}
-                </button>
+                {hasSelection && !noneChosen && (
+                  <button
+                    className="modal-show-alternatives-btn"
+                    onClick={() => setShowAlternatives(v => !v)}
+                  >
+                    {showAlternatives ? 'Hide alternatives' : 'Switch workout ↕'}
+                  </button>
+                )}
+                {(!hasSelection || showAlternatives) && (
+                  <button
+                    className={`modal-none-btn${noneChosen ? ' modal-none-chosen' : ''}`}
+                    onClick={() => !noneChosen && handleSelect('none')}
+                  >
+                    {noneChosen ? '✓ Did something else' : 'None of the above — did something else'}
+                  </button>
+                )}
+                {showResult && !showAlternatives && (
+                  <ResultSection
+                    key={data.selected}
+                    data={data}
+                    onSave={handleSaveResult}
+                  />
+                )}
               </>
             )
           })()}
