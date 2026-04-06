@@ -829,23 +829,13 @@ app.get('/api/prs', (_req, res) => {
       const prs = {};
       const dates = {};
       for (const { key, dist } of PR_TARGETS) {
-        let row = null;
-        try {
-          row = statsDb.prepare(
-            `SELECT abe.timeInSeconds as best, a.startDate as date
-             FROM ActivityBestEffort abe
-             JOIN Activity a ON a.activityId = abe.activityId
-             WHERE abe.sportType = 'Run' AND abe.distanceInMeter = ?
-             ORDER BY abe.timeInSeconds ASC LIMIT 1`
-          ).get(dist);
-        } catch (_) {
-          row = statsDb.prepare(
-            "SELECT MIN(timeInSeconds) as best FROM ActivityBestEffort WHERE sportType = 'Run' AND distanceInMeter = ?"
-          ).get(dist);
-        }
+        const row = statsDb.prepare(
+          "SELECT timeInSeconds as best, activityId FROM ActivityBestEffort WHERE sportType = 'Run' AND distanceInMeter = ? ORDER BY timeInSeconds ASC LIMIT 1"
+        ).get(dist);
         if (row?.best) {
           prs[key] = row.best;
-          if (row.date) dates[key] = row.date.slice(0, 10);
+          const run = db.prepare('SELECT date FROM runs WHERE id = ?').get(row.activityId);
+          if (run?.date) dates[key] = run.date.slice(0, 10);
         }
       }
       statsDb.close();
