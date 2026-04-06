@@ -23,11 +23,11 @@ export default function MainPage() {
         <h2 className="section-label">Training Calendar</h2>
         <Calendar onSessionClick={setSessionModalDate} />
       </section>
-      <PersonalRecords />
       <section className="section">
         <h2 className="section-label">Recent Runs</h2>
         <RecentRuns />
       </section>
+      <PersonalRecords />
       {sessionModalDate && (
         <SessionModal date={sessionModalDate} onClose={() => setSessionModalDate(null)} />
       )}

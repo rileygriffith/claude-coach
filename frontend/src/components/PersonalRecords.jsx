@@ -23,8 +23,13 @@ const PR_LABELS = {
   pr_marathon: 'Marathon',
 }
 
+function formatPRDate(dateStr) {
+  if (!dateStr) return null
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 export default function PersonalRecords() {
-  const { prs } = useApp()
+  const { prs, prDates } = useApp()
 
   const entries = Object.keys(PR_LABELS).filter(key => prs[key])
   if (!entries.length) return null
@@ -39,6 +44,9 @@ export default function PersonalRecords() {
             <div>
               <span className="run-distance">{formatPRTime(prs[key])}</span>
             </div>
+            {prDates[key] && (
+              <div className="run-pace" style={{ marginTop: '0.25rem' }}>{formatPRDate(prDates[key])}</div>
+            )}
           </div>
         ))}
       </div>

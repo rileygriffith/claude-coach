@@ -16,6 +16,7 @@ export function AppProvider({ children }) {
   const [sessionDates, setSessionDates] = useState(new Set())
   const [calendarVersion, setCalendarVersion] = useState(0)
   const [prs, setPRs] = useState({})
+  const [prDates, setPRDates] = useState({})
   const [prSource, setPRSource] = useState(null)
   const [pendingResultDates, setPendingResultDates] = useState([])
 
@@ -67,6 +68,7 @@ export function AppProvider({ children }) {
       .then(data => {
         if (data) {
           setPRs(data.prs || {})
+          setPRDates(data.dates || {})
           setPRSource(data.source || null)
         }
       })
@@ -89,6 +91,7 @@ export function AppProvider({ children }) {
     calendarVersion,
     refreshCalendar,
     prs,
+    prDates,
     prSource,
     pendingResultDates,
   }

@@ -827,24 +827,45 @@ app.get('/api/prs', (_req, res) => {
     try {
       const statsDb = require('better-sqlite3')(STRAVA_STATS_DB, { readonly: true });
       const prs = {};
+      const dates = {};
       for (const { key, dist } of PR_TARGETS) {
-        const row = statsDb.prepare(
-          "SELECT MIN(timeInSeconds) as best FROM ActivityBestEffort WHERE sportType = 'Run' AND distanceInMeter = ?"
-        ).get(dist);
-        if (row?.best) prs[key] = row.best;
+        let row = null;
+        try {
+          row = statsDb.prepare(
+            `SELECT abe.timeInSeconds as best, a.startDate as date
+             FROM ActivityBestEffort abe
+             JOIN Activity a ON a.activityId = abe.activityId
+             WHERE abe.sportType = 'Run' AND abe.distanceInMeter = ?
+             ORDER BY abe.timeInSeconds ASC LIMIT 1`
+          ).get(dist);
+        } catch (_) {
+          row = statsDb.prepare(
+            "SELECT MIN(timeInSeconds) as best FROM ActivityBestEffort WHERE sportType = 'Run' AND distanceInMeter = ?"
+          ).get(dist);
+        }
+        if (row?.best) {
+          prs[key] = row.best;
+          if (row.date) dates[key] = row.date.slice(0, 10);
+        }
       }
       statsDb.close();
-      return res.json({ prs, source: 'statistics-for-strava' });
+      return res.json({ prs, dates, source: 'statistics-for-strava' });
     } catch (_) {}
   }
 
-  // Fallback: read cached values written during the last sync
+  // Fallback: live query from runs DB
   const prs = {};
-  for (const { key } of PR_TARGETS) {
-    const val = getSetting(key);
-    if (val) prs[key] = parseInt(val);
+  const dates = {};
+  for (const { key, dist, low, high } of PR_TARGETS) {
+    const run = db.prepare(
+      'SELECT elapsed_time, distance, date FROM runs WHERE distance >= ? AND distance <= ? ORDER BY elapsed_time / distance ASC LIMIT 1'
+    ).get(low, high);
+    if (run) {
+      prs[key] = Math.round(run.elapsed_time * (dist / run.distance));
+      dates[key] = run.date.slice(0, 10);
+    }
   }
-  res.json({ prs, source: 'runs-db' });
+  res.json({ prs, dates, source: 'runs-db' });
 });
 
 app.post('/api/settings', (req, res) => {
