@@ -1151,35 +1151,21 @@ header {
   font-size: 0.82rem;
 }
 
-.soreness-toggle-btn {
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 4px 14px;
-  border-radius: 5px;
-  font-family: inherit;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-
-.soreness-toggle-btn.active {
-  background: var(--orange);
-  border-color: var(--orange);
-  color: #000;
-}
-
-.soreness-section {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.generate-notes {
+  width: 100%;
+  flex-shrink: 0;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 0.75rem 1rem;
-  margin-top: 0.75rem;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  padding: 0.65rem 0.85rem;
+  resize: vertical;
+  box-sizing: border-box;
+  min-height: 60px;
 }
+.generate-notes:focus { outline: none; border-color: var(--accent); }
 
 
 /* ── Workout result section ──────────────────────────────────────────────────── */

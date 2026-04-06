@@ -5,7 +5,7 @@ import { localDateStr } from '../utils'
 
 export default function GenerateModal({ onClose }) {
   const { targetDate, useImperial, setTodaySession, refreshCalendar } = useApp()
-  const [soreness, setSoreness] = useState('no')
+  const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(true)
   const [estimateData, setEstimateData] = useState(null)
@@ -15,7 +15,7 @@ export default function GenerateModal({ onClose }) {
   const units = useImperial ? 'miles' : 'km'
   const today = localDateStr()
   const historyDays = 60
-  const payload = { units, date: targetDate, today, history_days: historyDays }
+  const payload = { units, date: targetDate, today, history_days: historyDays, notes }
 
   useEffect(() => {
     setPreviewLoading(true)
@@ -33,13 +33,10 @@ export default function GenerateModal({ onClose }) {
 
   async function handleGenerate() {
     setLoading(true)
-    const sorenessNote = '\n\nNote: The athlete is reporting lower body soreness today. Take this into account when recommending intensity and workout type.'
-    const insertBefore = '\n\nAll distances and paces must be in'
-
     try {
       const res = await generateWorkout({
         units,
-        soreness: soreness === 'yes' ? 'yes' : 'none',
+        notes: notes.trim(),
         date: targetDate,
         history_days: historyDays,
       })
@@ -73,11 +70,10 @@ export default function GenerateModal({ onClose }) {
     if (e.target === e.currentTarget) onClose()
   }
 
-  const sorenessNote = '\n\nNote: The athlete is reporting lower body soreness today. Take this into account when recommending intensity and workout type.'
   const insertBefore = '\n\nAll distances and paces must be in'
   const basePrompt = previewData ? previewData.prompt : ''
-  const displayPrompt = soreness === 'yes' && basePrompt
-    ? basePrompt.replace(insertBefore, sorenessNote + insertBefore)
+  const displayPrompt = notes.trim() && basePrompt
+    ? basePrompt.replace(insertBefore, `\n\nAthlete note: ${notes.trim()}` + insertBefore)
     : basePrompt
 
   return (
@@ -94,17 +90,6 @@ export default function GenerateModal({ onClose }) {
             <div className="state-error">Failed to load preview: {error}</div>
           ) : (
             <>
-              {targetDate === today && (
-                <div className="soreness-section">
-                  <span className="generate-preview-label">Lower body soreness</span>
-                  <button
-                    className={`soreness-toggle-btn${soreness === 'yes' ? ' active' : ''}`}
-                    onClick={() => setSoreness(s => s === 'yes' ? 'no' : 'yes')}
-                  >
-                    {soreness === 'yes' ? 'Yes' : 'No'}
-                  </button>
-                </div>
-              )}
               <p className="generate-section-label">Cost estimate</p>
               {estimateData && (
                 <div className="generate-preview-meta">
@@ -186,6 +171,13 @@ export default function GenerateModal({ onClose }) {
                       </div>
                     )}
                   </div>
+                  <textarea
+                    className="generate-notes"
+                    placeholder="Any notes for Claude? (e.g. feeling tired, skipped yesterday…)"
+                    rows={2}
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                  />
                   <details className="generate-preview-details">
                     <summary>Preview prompt</summary>
                     <pre className="prompt-preview">{displayPrompt}</pre>

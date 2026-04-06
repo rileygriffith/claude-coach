@@ -713,7 +713,7 @@ function buildRunSummary(runs, sessionMap = {}) {
   }).join('\n');
 }
 
-function buildPromptContent(runs, units = 'miles', soreness = 'none', targetDate = null, clientToday = null, historyDays = 60) {
+function buildPromptContent(runs, units = 'miles', notes = '', targetDate = null, clientToday = null, historyDays = 60) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - historyDays);
   runs = runs.filter(r => new Date(r.date) >= cutoff);
@@ -766,8 +766,8 @@ function buildPromptContent(runs, units = 'miles', soreness = 'none', targetDate
   const prSection = prLines.length
     ? `\n\n━━━ PERSONAL RECORDS ━━━\n${prLines.join('\n')}\n━━━━━━━━━━━━━━━━━━━━━━━\n`
     : '';
-  const sorenessSection = soreness === 'yes'
-    ? `\n\nNote: The athlete is reporting lower body soreness today. Take this into account when recommending intensity and workout type.`
+  const sorenessSection = notes && notes.trim()
+    ? `\n\nAthlete note: ${notes.trim()}`
     : '';
   const today = clientToday || localDateStr();
   const workoutDate = targetDate || today;
@@ -892,8 +892,8 @@ app.get('/api/activities', async (_req, res) => {
 app.post('/api/cost-estimate', async (req, res) => {
   try {
     const runs = await getActivities();
-    const { units = 'miles', date, today, history_days } = req.body || {};
-    const promptContent = buildPromptContent(runs, units, 'none', date || localDateStr(), today || null, history_days || 60);
+    const { units = 'miles', notes = '', date, today, history_days } = req.body || {};
+    const promptContent = buildPromptContent(runs, units, notes, date || localDateStr(), today || null, history_days || 60);
     const { input_tokens } = await getAnthropicClient().messages.countTokens({
       model: 'claude-sonnet-4-6',
       system: COACHING_PROMPT,
@@ -912,13 +912,13 @@ app.post('/api/cost-estimate', async (req, res) => {
 app.post('/api/prompt-preview', async (req, res) => {
   try {
     const allRuns = await getActivities();
-    const { units = 'miles', date, today, history_days } = req.body || {};
+    const { units = 'miles', notes = '', date, today, history_days } = req.body || {};
     const days = history_days || 60;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
     const runs = allRuns.filter(r => new Date(r.date) >= cutoff);
     const systemPrompt = COACHING_PROMPT;
-    const userContent = buildPromptContent(runs, units, 'none', date || localDateStr(), today || null, days);
+    const userContent = buildPromptContent(runs, units, notes, date || localDateStr(), today || null, days);
     const oldest = runs.length ? runs[runs.length - 1].date.slice(0, 10) : null;
     const newest = runs.length ? runs[0].date.slice(0, 10) : null;
     const daysSinceLastRun = newest
@@ -962,13 +962,13 @@ app.post('/api/generate-workout', async (req, res) => {
     const runs = await getActivities();
     if (!runs.length) return res.status(400).json({ error: 'No runs found on Strava.' });
 
-    const { units = 'miles', soreness = 'none', date, history_days } = req.body || {};
+    const { units = 'miles', notes = '', date, history_days } = req.body || {};
     const sessionDate = date || localDateStr();
     const message = await getAnthropicClient().messages.create({
       model:      'claude-sonnet-4-6',
       max_tokens: 1024,
       system:     COACHING_PROMPT,
-      messages:   [{ role: 'user', content: buildPromptContent(runs, units, soreness, sessionDate, null, history_days || 60) }],
+      messages:   [{ role: 'user', content: buildPromptContent(runs, units, notes, sessionDate, null, history_days || 60) }],
     });
 
     const text      = message.content[0].text;
