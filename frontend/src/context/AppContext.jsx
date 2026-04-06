@@ -26,6 +26,14 @@ export function AppProvider({ children }) {
 
   function refreshCalendar() {
     setCalendarVersion(v => v + 1)
+    getUnresolvedSessions()
+      .then(r => r && r.json())
+      .then(data => { if (data && data.dates) setUnresolvedDates(new Set(data.dates)) })
+      .catch(() => {})
+    getPendingResults()
+      .then(r => r && r.json())
+      .then(data => { if (data?.dates) setPendingResultDates(data.dates) })
+      .catch(() => {})
   }
 
   useEffect(() => {
