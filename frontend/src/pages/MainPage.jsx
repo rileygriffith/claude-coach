@@ -24,7 +24,6 @@ export default function MainPage() {
         <Calendar onSessionClick={setSessionModalDate} />
       </section>
       <section className="section">
-        <h2 className="section-label">Recent Runs</h2>
         <RecentRuns />
       </section>
       <PersonalRecords />

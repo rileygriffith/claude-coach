@@ -87,8 +87,24 @@ export async function changePassword(current, next) {
   })
 }
 
-export async function syncStrava() {
-  return apiFetch('/api/sync', { method: 'POST' })
+export async function createRun(run) {
+  return apiFetch('/api/runs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(run),
+  })
+}
+
+export async function updateRun(id, run) {
+  return apiFetch(`/api/runs/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(run),
+  })
+}
+
+export async function deleteRun(id) {
+  return apiFetch(`/api/runs/${id}`, { method: 'DELETE' })
 }
 
 export async function getCostEstimate(payload) {

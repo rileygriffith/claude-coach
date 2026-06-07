@@ -48,7 +48,7 @@ db.exec(`
 // ALTER TABLE fails if the column already exists — the catch is intentional.
 // Add new columns here; do not remove or reorder existing entries.
 
-try { db.exec('ALTER TABLE runs ADD COLUMN workout_type TEXT'); } catch (_) {}                          // added: Strava workout type field
+try { db.exec('ALTER TABLE runs ADD COLUMN workout_type TEXT'); } catch (_) {}                          // added: workout type tag from prescribed session
 try { db.exec('ALTER TABLE workout_sessions ADD COLUMN recommended TEXT'); } catch (_) {}              // added: track which option Claude recommended
 try { db.exec('ALTER TABLE workout_sessions ADD COLUMN input_tokens INTEGER'); } catch (_) {}          // added: token usage tracking
 try { db.exec('ALTER TABLE workout_sessions ADD COLUMN output_tokens INTEGER'); } catch (_) {}         // added: token usage tracking
@@ -72,7 +72,7 @@ function setSetting(key, value) {
 }
 
 // ── Personal record targets ────────────────────────────────────────────────────
-// Distances tracked by Statistics for Strava. label is shown in the UI and prompt.
+// label is shown in the UI and coaching prompt.
 // low/high are used for fallback calculation from whole-run distances.
 
 const PR_TARGETS = [
@@ -285,11 +285,11 @@ app.use(requireAuth);
 // ── Onboarding (post-login setup wizard) ──────────────────────────────────────
 
 function isConfigured() {
-  return !!(getSetting('anthropic_api_key') && getSetting('strava_refresh_token'));
+  return !!getSetting('anthropic_api_key');
 }
 
 function requireConfigured(req, res, next) {
-  const exempt = ['/onboarding', '/strava/connect', '/strava/callback'];
+  const exempt = ['/onboarding'];
   if (exempt.some(p => req.path.startsWith(p))) return next();
   if (req.path.startsWith('/api/onboarding')) return next();
   if (!isConfigured()) return res.redirect('/onboarding');
@@ -298,7 +298,7 @@ function requireConfigured(req, res, next) {
 
 app.use(requireConfigured);
 
-function onboardingPageHTML(step = 1) {
+function onboardingPageHTML() {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -319,12 +319,6 @@ function onboardingPageHTML(step = 1) {
     }
     .logo { font-size: 1.3rem; font-weight: 700; margin-bottom: 0.25rem; }
     .sub  { color: #888; font-size: 0.85rem; margin-bottom: 2rem; }
-    .steps { display: flex; gap: 0.5rem; margin-bottom: 2rem; }
-    .step-dot {
-      height: 4px; flex: 1; border-radius: 2px; background: #2a2a2a; transition: background 0.2s;
-    }
-    .step-dot.active  { background: #60a5fa; }
-    .step-dot.done    { background: #34d399; }
     h2 { font-size: 1rem; font-weight: 700; margin-bottom: 0.35rem; }
     .section-sub { color: #888; font-size: 0.82rem; margin-bottom: 1.25rem; line-height: 1.5; }
     .instructions {
@@ -336,10 +330,6 @@ function onboardingPageHTML(step = 1) {
     .instructions li { margin-bottom: 0.25rem; }
     .instructions a { color: #60a5fa; text-decoration: none; }
     .instructions a:hover { text-decoration: underline; }
-    .instructions code {
-      background: #252525; border-radius: 4px; padding: 0.1em 0.4em;
-      font-family: monospace; color: #e8e8e8; font-size: 0.9em;
-    }
     .field { margin-bottom: 1rem; }
     label { display: block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
       letter-spacing: 0.08em; color: #888; margin-bottom: 0.4rem; }
@@ -356,14 +346,8 @@ function onboardingPageHTML(step = 1) {
     }
     .btn:hover:not(:disabled) { opacity: 0.85; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-secondary {
-      background: none; border: 1px solid #3a3a3a; color: #aaa; margin-top: 0.5rem;
-    }
-    .btn-secondary:hover { border-color: #666; color: #e8e8e8; }
     .error   { color: #f87171; font-size: 0.82rem; margin-top: 0.75rem; }
-    .success { color: #34d399; font-size: 0.82rem; margin-top: 0.75rem; }
     .hidden  { display: none; }
-    .strava-logo { color: #fc4c02; font-weight: 700; }
   </style>
 </head>
 <body>
@@ -371,61 +355,25 @@ function onboardingPageHTML(step = 1) {
     <div class="logo">Running Coach</div>
     <p class="sub">Let's get you set up.</p>
 
-    <div class="steps">
-      <div class="step-dot ${step >= 1 ? 'active' : ''}" id="dot-1"></div>
-      <div class="step-dot ${step >= 2 ? 'active' : ''}" id="dot-2"></div>
+    <h2>Anthropic API Key</h2>
+    <p class="section-sub">Used to generate workout recommendations with Claude.</p>
+    <div class="instructions">
+      <ol>
+        <li>Go to <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></li>
+        <li>Sign in or create an account</li>
+        <li>Navigate to <strong>API Keys</strong> and create a new key</li>
+        <li>Paste it below</li>
+      </ol>
     </div>
-
-    <!-- Step 1: Anthropic -->
-    <div id="step-1" class="${step !== 1 ? 'hidden' : ''}">
-      <h2>Anthropic API Key</h2>
-      <p class="section-sub">Used to generate workout recommendations with Claude.</p>
-      <div class="instructions">
-        <ol>
-          <li>Go to <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></li>
-          <li>Sign in or create an account</li>
-          <li>Navigate to <strong>API Keys</strong> and create a new key</li>
-          <li>Paste it below</li>
-        </ol>
-      </div>
-      <div class="field">
-        <label for="anthropic-key">API Key</label>
-        <input id="anthropic-key" type="password" placeholder="sk-ant-…" autocomplete="off" />
-      </div>
-      <button class="btn" id="anthropic-btn">Verify &amp; Continue</button>
-      <p class="error hidden" id="anthropic-error"></p>
+    <div class="field">
+      <label for="anthropic-key">API Key</label>
+      <input id="anthropic-key" type="password" placeholder="sk-ant-…" autocomplete="off" />
     </div>
-
-    <!-- Step 2: Strava -->
-    <div id="step-2" class="${step !== 2 ? 'hidden' : ''}">
-      <h2><span class="strava-logo">Strava</span> Connection</h2>
-      <p class="section-sub">Connect your Strava account so the coach can see your training history.</p>
-      <div class="instructions">
-        <ol>
-          <li>Go to <a href="https://www.strava.com/settings/api" target="_blank">strava.com/settings/api</a> and create an app</li>
-          <li>For <strong>Authorization Callback Domain</strong> enter: <code id="callback-domain">loading…</code></li>
-          <li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> from your app</li>
-          <li>Paste them below and click <strong>Connect Strava</strong></li>
-        </ol>
-      </div>
-      <div class="field">
-        <label for="strava-id">Client ID</label>
-        <input id="strava-id" type="text" autocomplete="off" />
-      </div>
-      <div class="field">
-        <label for="strava-secret">Client Secret</label>
-        <input id="strava-secret" type="password" autocomplete="off" />
-      </div>
-      <button class="btn" id="strava-btn">Connect Strava</button>
-      <p class="error hidden" id="strava-error"></p>
-    </div>
+    <button class="btn" id="anthropic-btn">Verify &amp; Continue</button>
+    <p class="error hidden" id="anthropic-error"></p>
   </div>
 
   <script>
-    // Show the correct callback domain
-    document.getElementById('callback-domain').textContent = window.location.hostname;
-
-    // ── Step 1: Anthropic ────────────────────────────────────────────────────
     document.getElementById('anthropic-btn').addEventListener('click', async () => {
       const btn = document.getElementById('anthropic-btn');
       const err = document.getElementById('anthropic-error');
@@ -440,38 +388,10 @@ function onboardingPageHTML(step = 1) {
         });
         const data = await r.json();
         if (!r.ok) throw new Error(data.error || 'Verification failed.');
-        document.getElementById('step-1').classList.add('hidden');
-        document.getElementById('step-2').classList.remove('hidden');
-        document.getElementById('dot-1').classList.add('done');
-        document.getElementById('dot-2').classList.add('active');
+        window.location.href = '/';
       } catch (e) {
         err.textContent = e.message; err.classList.remove('hidden');
         btn.disabled = false; btn.textContent = 'Verify & Continue';
-      }
-    });
-
-    // ── Step 2: Strava ───────────────────────────────────────────────────────
-    document.getElementById('strava-btn').addEventListener('click', async () => {
-      const btn = document.getElementById('strava-btn');
-      const err = document.getElementById('strava-error');
-      const clientId     = document.getElementById('strava-id').value.trim();
-      const clientSecret = document.getElementById('strava-secret').value.trim();
-      err.classList.add('hidden');
-      if (!clientId || !clientSecret) {
-        err.textContent = 'Both Client ID and Client Secret are required.';
-        err.classList.remove('hidden'); return;
-      }
-      btn.disabled = true; btn.textContent = 'Redirecting to Strava…';
-      try {
-        const r = await fetch('/api/onboarding/strava-creds', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ client_id: clientId, client_secret: clientSecret }),
-        });
-        if (!r.ok) throw new Error('Failed to save credentials.');
-        window.location.href = '/strava/connect';
-      } catch (e) {
-        err.textContent = e.message; err.classList.remove('hidden');
-        btn.disabled = false; btn.textContent = 'Connect Strava';
       }
     });
   </script>
@@ -481,8 +401,7 @@ function onboardingPageHTML(step = 1) {
 
 app.get('/onboarding', (req, res) => {
   if (isConfigured()) return res.redirect('/');
-  const step = parseInt(req.query.step) || 1;
-  res.send(onboardingPageHTML(step));
+  res.send(onboardingPageHTML());
 });
 
 app.post('/api/onboarding/anthropic', async (req, res) => {
@@ -499,135 +418,10 @@ app.post('/api/onboarding/anthropic', async (req, res) => {
   }
 });
 
-app.post('/api/onboarding/strava-creds', (req, res) => {
-  const { client_id, client_secret } = req.body;
-  if (!client_id || !client_secret) return res.status(400).json({ error: 'Missing credentials.' });
-  setSetting('strava_client_id',     client_id.trim());
-  setSetting('strava_client_secret', client_secret.trim());
-  cachedToken = null; tokenExpiry = 0;
-  res.json({ ok: true });
-});
-
-app.get('/strava/connect', (req, res) => {
-  const clientId    = getSetting('strava_client_id');
-  if (!clientId) return res.redirect('/onboarding?step=2&error=missing_creds');
-  const callbackUrl = `${req.protocol}://${req.get('host')}/strava/callback`;
-  const url = new URL('https://www.strava.com/oauth/authorize');
-  url.searchParams.set('client_id',     clientId);
-  url.searchParams.set('redirect_uri',  callbackUrl);
-  url.searchParams.set('response_type', 'code');
-  url.searchParams.set('approval_prompt', 'auto');
-  url.searchParams.set('scope',         'activity:read_all');
-  res.redirect(url.toString());
-});
-
-app.get('/strava/callback', async (req, res) => {
-  const { code, error } = req.query;
-  if (error || !code) return res.redirect('/onboarding?step=2&error=strava_denied');
-  try {
-    const clientId     = getSetting('strava_client_id');
-    const clientSecret = getSetting('strava_client_secret');
-    const tokenRes = await fetch('https://www.strava.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, grant_type: 'authorization_code' }),
-    });
-    const tokens = await tokenRes.json();
-    if (!tokens.refresh_token) throw new Error('No refresh token received.');
-    setSetting('strava_refresh_token', tokens.refresh_token);
-    cachedToken = null; tokenExpiry = 0;
-    res.redirect('/');
-  } catch (err) {
-    res.redirect('/onboarding?step=2&error=strava_failed');
-  }
-});
-
 app.use(express.static(path.join(__dirname, 'dist')));
 
 function getAnthropicClient() {
   return new Anthropic({ apiKey: getSetting('anthropic_api_key') });
-}
-
-// ── Strava token ───────────────────────────────────────────────────────────────
-
-let cachedToken  = null;
-let tokenExpiry  = 0;
-
-function getStravaCreds() {
-  return {
-    clientId:     getSetting('strava_client_id'),
-    clientSecret: getSetting('strava_client_secret'),
-    refreshToken: getSetting('strava_refresh_token'),
-  };
-}
-
-async function getStravaToken() {
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-  const { clientId, clientSecret, refreshToken } = getStravaCreds();
-  const res = await fetch('https://www.strava.com/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id:     clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type:    'refresh_token',
-    }),
-  });
-  if (!res.ok) throw new Error(`Strava token refresh failed (${res.status}): ${await res.text()}`);
-  const data = await res.json();
-  if (data.errors) throw new Error(`Strava error: ${JSON.stringify(data.errors)}`);
-  cachedToken = data.access_token;
-  tokenExpiry = data.expires_at * 1000 - 60_000;
-  return cachedToken;
-}
-
-// ── Strava sync ────────────────────────────────────────────────────────────────
-
-const RUN_TYPES  = ['Run', 'TrailRun', 'VirtualRun', 'Treadmill'];
-const SYNC_TTL   = 60 * 60 * 1000; // 1 hour
-
-async function syncFromStrava() {
-  const lastSynced = parseInt(getSetting('last_synced_at', '0'));
-  if (Date.now() - lastSynced < SYNC_TTL) return;
-
-  const token  = await getStravaToken();
-  const latest = db.prepare('SELECT date FROM runs ORDER BY date DESC LIMIT 1').get();
-  // On first sync fetch all history (epoch 0); subsequently fetch only new runs since the last stored run.
-  const after  = latest ? Math.floor(new Date(latest.date).getTime() / 1000) : 0;
-
-  let page = 1, fetched = [];
-  while (true) {
-    const response = await fetch(
-      `https://www.strava.com/api/v3/athlete/activities?per_page=200&after=${after}&page=${page}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (!response.ok) throw new Error(`Strava error (${response.status}): ${await response.text()}`);
-    const activities = await response.json();
-    if (!activities.length) break;
-    fetched = fetched.concat(activities.filter(a => RUN_TYPES.includes(a.sport_type || a.type)));
-    if (activities.length < 200) break;
-    page++;
-  }
-
-  const insert = db.prepare(`
-    INSERT OR REPLACE INTO runs
-      (id, name, date, distance, elapsed_time, average_speed,
-       average_heartrate, average_cadence, average_watts, total_elevation_gain, sport_type)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  db.transaction(runs => {
-    for (const a of runs) insert.run(
-      a.id, a.name, a.start_date_local, a.distance, a.elapsed_time,
-      a.average_speed, a.average_heartrate || null, a.average_cadence || null,
-      a.average_watts || null, a.total_elevation_gain || 0, a.sport_type || a.type
-    );
-  })(fetched);
-
-  setSetting('last_synced_at', Date.now().toString());
-  console.log(`[sync] ${fetched.length} new run(s) added to DB`);
-
-  computePRs();
 }
 
 function formatPRTime(seconds) {
@@ -638,34 +432,8 @@ function formatPRTime(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// Compute PRs from the runs DB by finding the fastest run within each distance window.
 function computePRs() {
-  if (loadPRsFromStravaStatsDB()) return;
-  computePRsFromRunsDB();
-}
-
-// Query the Statistics for Strava SQLite DB (mounted read-only) for best efforts.
-function loadPRsFromStravaStatsDB() {
-  const STRAVA_STATS_DB = process.env.STRAVA_STATS_DB || '/data/strava.db';
-  if (!require('fs').existsSync(STRAVA_STATS_DB)) return false;
-  try {
-    const statsDb = require('better-sqlite3')(STRAVA_STATS_DB, { readonly: true });
-    for (const { key, dist } of PR_TARGETS) {
-      const row = statsDb.prepare(
-        "SELECT MIN(timeInSeconds) as best FROM ActivityBestEffort WHERE sportType = 'Run' AND distanceInMeter = ?"
-      ).get(dist);
-      if (row?.best) setSetting(key, String(row.best));
-    }
-    statsDb.close();
-    console.log('[sync] PRs loaded from Statistics for Strava DB');
-    return true;
-  } catch (err) {
-    console.warn('[sync] Statistics for Strava DB unavailable:', err.message);
-    return false;
-  }
-}
-
-// Fallback: compute PRs from our own runs DB by finding the fastest run within each distance window.
-function computePRsFromRunsDB() {
   for (const { key, dist: meters, low, high } of PR_TARGETS) {
     const best = db.prepare(
       'SELECT elapsed_time, distance FROM runs WHERE distance >= ? AND distance <= ? ORDER BY elapsed_time / distance ASC LIMIT 1'
@@ -675,16 +443,10 @@ function computePRsFromRunsDB() {
       setSetting(key, String(scaled));
     }
   }
-  console.log('[sync] PRs computed from runs DB (fallback)');
 }
 
 function getRunsFromDB() {
   return db.prepare('SELECT * FROM runs ORDER BY date DESC').all();
-}
-
-async function getActivities() {
-  await syncFromStrava();
-  return getRunsFromDB();
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -823,29 +585,6 @@ app.get('/api/settings', (_req, res) => {
 });
 
 app.get('/api/prs', (_req, res) => {
-  const STRAVA_STATS_DB = process.env.STRAVA_STATS_DB || '/data/strava.db';
-
-  if (require('fs').existsSync(STRAVA_STATS_DB)) {
-    try {
-      const statsDb = require('better-sqlite3')(STRAVA_STATS_DB, { readonly: true });
-      const prs = {};
-      const dates = {};
-      for (const { key, dist } of PR_TARGETS) {
-        const row = statsDb.prepare(
-          "SELECT timeInSeconds as best, activityId FROM ActivityBestEffort WHERE sportType = 'Run' AND distanceInMeter = ? ORDER BY timeInSeconds ASC LIMIT 1"
-        ).get(dist);
-        if (row?.best) {
-          prs[key] = row.best;
-          const run = db.prepare('SELECT date FROM runs WHERE id = ?').get(row.activityId);
-          if (run?.date) dates[key] = run.date.slice(0, 10);
-        }
-      }
-      statsDb.close();
-      return res.json({ prs, dates, source: 'statistics-for-strava' });
-    } catch (_) {}
-  }
-
-  // Fallback: live query from runs DB
   const prs = {};
   const dates = {};
   for (const { key, dist, low, high } of PR_TARGETS) {
@@ -861,15 +600,10 @@ app.get('/api/prs', (_req, res) => {
 });
 
 app.post('/api/settings', (req, res) => {
-  const ALLOWED = ['goal', 'cross_training', 'injury_notes', 'race_distance', 'race_date',
-                   'anthropic_api_key', 'strava_client_id', 'strava_client_secret', 'strava_refresh_token'];
+  const ALLOWED = ['goal', 'cross_training', 'injury_notes', 'race_distance', 'race_date', 'anthropic_api_key'];
   const { key, value } = req.body;
   if (!ALLOWED.includes(key)) return res.status(400).json({ error: 'Invalid setting key' });
   setSetting(key, value);
-  // Invalidate Strava token cache if credentials changed
-  if (['strava_client_id', 'strava_client_secret', 'strava_refresh_token'].includes(key)) {
-    cachedToken = null; tokenExpiry = 0;
-  }
   res.json({ ok: true });
 });
 
@@ -883,32 +617,99 @@ app.post('/api/change-password', async (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/sync', async (_req, res) => {
-  try {
-    setSetting('last_synced_at', '0'); // reset TTL to force sync
-    await syncFromStrava();
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ── Activities API ─────────────────────────────────────────────────────────────
 
-app.get('/api/activities', async (_req, res) => {
+app.get('/api/activities', (_req, res) => {
   try {
-    res.json(await getActivities());
+    res.json(getRunsFromDB());
   } catch (err) {
     console.error('[/api/activities]', err);
     res.status(500).json({ error: err.message });
   }
 });
 
+// ── Manual run entry ───────────────────────────────────────────────────────────
+
+function readRunBody(body) {
+  const {
+    name, date, distance, elapsed_time,
+    average_heartrate, average_cadence, average_watts,
+    total_elevation_gain, sport_type, workout_type,
+  } = body || {};
+
+  if (!date)                                  throw new Error('Date is required.');
+  if (!(distance > 0))                        throw new Error('Distance must be greater than zero.');
+  if (!(elapsed_time > 0))                    throw new Error('Duration must be greater than zero.');
+
+  return {
+    name:                 name || 'Run',
+    // Store a local-time datetime (matching the historical Strava `start_date_local`
+    // format) so `new Date(run.date)` parses as local time instead of UTC midnight.
+    date:                 date.length === 10 ? `${date}T12:00:00` : date,
+    distance:             Number(distance),
+    elapsed_time:         Math.round(Number(elapsed_time)),
+    average_speed:        Number(distance) / Number(elapsed_time),
+    average_heartrate:    average_heartrate    ? Number(average_heartrate)    : null,
+    average_cadence:      average_cadence      ? Number(average_cadence)      : null,
+    average_watts:        average_watts        ? Number(average_watts)        : null,
+    total_elevation_gain: total_elevation_gain ? Number(total_elevation_gain) : 0,
+    sport_type:           sport_type || 'Run',
+    workout_type:         workout_type || null,
+  };
+}
+
+app.post('/api/runs', (req, res) => {
+  try {
+    const r = readRunBody(req.body);
+    const result = db.prepare(`
+      INSERT INTO runs
+        (name, date, distance, elapsed_time, average_speed,
+         average_heartrate, average_cadence, average_watts, total_elevation_gain, sport_type, workout_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      r.name, r.date, r.distance, r.elapsed_time, r.average_speed,
+      r.average_heartrate, r.average_cadence, r.average_watts, r.total_elevation_gain, r.sport_type, r.workout_type
+    );
+    computePRs();
+    res.json({ ok: true, id: result.lastInsertRowid });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/runs/:id', (req, res) => {
+  try {
+    const r = readRunBody(req.body);
+    const result = db.prepare(`
+      UPDATE runs SET
+        name = ?, date = ?, distance = ?, elapsed_time = ?, average_speed = ?,
+        average_heartrate = ?, average_cadence = ?, average_watts = ?, total_elevation_gain = ?, sport_type = ?, workout_type = ?
+      WHERE id = ?
+    `).run(
+      r.name, r.date, r.distance, r.elapsed_time, r.average_speed,
+      r.average_heartrate, r.average_cadence, r.average_watts, r.total_elevation_gain, r.sport_type, r.workout_type,
+      req.params.id
+    );
+    if (result.changes === 0) return res.status(404).json({ error: 'No run with that id' });
+    computePRs();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/runs/:id', (req, res) => {
+  const result = db.prepare('DELETE FROM runs WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'No run with that id' });
+  computePRs();
+  res.json({ ok: true });
+});
+
 // ── Cost estimate ──────────────────────────────────────────────────────────────
 
 app.post('/api/cost-estimate', async (req, res) => {
   try {
-    const runs = await getActivities();
+    const runs = getRunsFromDB();
     const { units = 'miles', notes = '', date, today, history_days } = req.body || {};
     const promptContent = buildPromptContent(runs, units, notes, date || localDateStr(), today || null, history_days || 60);
     const { input_tokens } = await getAnthropicClient().messages.countTokens({
@@ -928,7 +729,7 @@ app.post('/api/cost-estimate', async (req, res) => {
 
 app.post('/api/prompt-preview', async (req, res) => {
   try {
-    const allRuns = await getActivities();
+    const allRuns = getRunsFromDB();
     const { units = 'miles', notes = '', date, today, history_days } = req.body || {};
     const days = history_days || 60;
     const cutoff = new Date();
@@ -976,8 +777,8 @@ app.post('/api/prompt-preview', async (req, res) => {
 
 app.post('/api/generate-workout', async (req, res) => {
   try {
-    const runs = await getActivities();
-    if (!runs.length) return res.status(400).json({ error: 'No runs found on Strava.' });
+    const runs = getRunsFromDB();
+    if (!runs.length) return res.status(400).json({ error: 'No runs logged yet — add a run first.' });
 
     const { units = 'miles', notes = '', date, history_days } = req.body || {};
     const sessionDate = date || localDateStr();
@@ -1117,20 +918,6 @@ app.get('/api/pending-results', (_req, res) => {
     .filter(s => db.prepare("SELECT id FROM runs WHERE date LIKE ? LIMIT 1").get(`${s.date}%`))
     .map(s => s.date);
   res.json({ dates: pending });
-});
-
-// ── Raw activity debug ─────────────────────────────────────────────────────────
-
-app.get('/api/raw-activity', async (_req, res) => {
-  try {
-    const token    = await getStravaToken();
-    const response = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=1',
-      { headers: { Authorization: `Bearer ${token}` } });
-    const data = await response.json();
-    res.json(data[0] || {});
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 });
 
 // SPA fallback — must be after all API routes

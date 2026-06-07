@@ -1,12 +1,12 @@
 # Running Coach
 
-An AI-powered running coach that connects to your Strava account and uses Claude to generate personalized workout recommendations based on your training history.
+An AI-powered running coach that uses Claude to generate personalized workout recommendations based on your training history — logged manually, run by run.
 
 ![Dashboard](screenshots/dashboard.png)
 
 ## Features
 
-- Pulls your run history from Strava automatically
+- Log your runs by hand (distance, time, heart rate, cadence, power, elevation)
 - Generates a recommended workout + alternatives using Claude (claude-sonnet-4-6)
 - Follows the 80/20 polarized training method by default
 - Tracks which workout you selected each day
@@ -58,29 +58,15 @@ Open `http://your-server:4218` and follow the setup wizard — no environment va
 
 1. **Create your account** — choose a username and password
 2. **Add your Anthropic API key** — get one from [console.anthropic.com](https://console.anthropic.com)
-3. **Connect Strava:**
-   - Go to [strava.com/settings/api](https://www.strava.com/settings/api) and create an app
-   - Set **Authorization Callback Domain** to your server's hostname (e.g. `coach.yourdomain.com`)
-   - Enter your **Client ID** and **Client Secret** in the setup wizard
-   - Click **Connect Strava** — you'll be redirected to Strava to authorise and brought back automatically
+3. **Log your first run** — click **+ Log a run** on the dashboard and enter your distance, time, and any other stats you tracked
 
 ### Data persistence
 
 All data lives in a single SQLite database inside the container at `/app/data`. The volume mount keeps it on your host so it survives container updates and restarts.
 
-### Personal records (optional: Statistics for Strava integration)
+### Personal records
 
-Personal records are shown on the dashboard and included in the coaching prompt so Claude can set accurate target paces. By default they are calculated from your run history (fastest run of approximately each standard distance).
-
-For GPS-accurate best efforts calculated from raw activity streams, you can mount the [Statistics for Strava](https://github.com/robiningelbrecht/statistics-for-strava) SQLite database read-only:
-
-```yaml
-volumes:
-  - ./data:/app/data
-  - /path/to/statistics-for-strava/strava.db:/data/strava.db:ro
-```
-
-When the mount is present the app queries it directly and falls back to the runs-DB calculation if it is unavailable. The **Settings → Data** page shows which source is active.
+Personal records are shown on the dashboard and included in the coaching prompt so Claude can set accurate target paces. They're calculated from your logged run history (fastest run of approximately each standard distance).
 
 ### Running behind a reverse proxy
 
@@ -103,9 +89,9 @@ npm start
 
 ## How it works
 
-1. On load the app syncs your recent runs from Strava (cached for 1 hour)
+1. Log your runs as you complete them — distance, time, heart rate, cadence, power, elevation
 2. Click **Generate Workout** for today or select a future date on the calendar
-3. Review the prompt, set soreness level if relevant, and send to Claude
+3. Review the prompt, add any notes (soreness, etc.), and send to Claude
 4. A recommended workout is shown — swipe through alternatives if you want something different
-5. Select the workout you plan to do (or come back after your run to log which one you did)
-6. Your selection is stored and included in future prompts so the coach builds on your history
+5. Select the workout you plan to do, then log the run and how it went afterward
+6. Your run history and results are stored and included in future prompts so the coach builds on your history

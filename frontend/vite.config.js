@@ -7,7 +7,6 @@ export default defineConfig({
   server: {
     proxy: {
       '/api':        'http://localhost:4218',
-      '/strava':     'http://localhost:4218',
       '/logout':     'http://localhost:4218',
       '/onboarding': 'http://localhost:4218',
     }
