@@ -123,6 +123,10 @@ export async function getPendingResults() {
   return apiFetch('/api/pending-results')
 }
 
+export async function getUnloggedSessions() {
+  return apiFetch('/api/unlogged-sessions')
+}
+
 export async function getPromptPreview(payload) {
   return apiFetch('/api/prompt-preview', {
     method: 'POST',

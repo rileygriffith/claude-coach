@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { localDateStr } from '../utils'
-import { getMe, getActivities, getTodaySession, getSessionDates, getUnresolvedSessions, getPRs, getPendingResults } from '../api'
+import { getMe, getActivities, getTodaySession, getSessionDates, getUnresolvedSessions, getPRs, getPendingResults, getUnloggedSessions } from '../api'
 
 const AppContext = createContext(null)
 
@@ -19,6 +19,7 @@ export function AppProvider({ children }) {
   const [prDates, setPRDates] = useState({})
   const [prSource, setPRSource] = useState(null)
   const [pendingResultDates, setPendingResultDates] = useState([])
+  const [unloggedDates, setUnloggedDates] = useState(new Set())
 
   function setUseImperial(val) {
     localStorage.setItem('useImperial', val ? 'true' : 'false')
@@ -34,6 +35,10 @@ export function AppProvider({ children }) {
     getPendingResults()
       .then(r => r && r.json())
       .then(data => { if (data?.dates) setPendingResultDates(data.dates) })
+      .catch(() => {})
+    getUnloggedSessions()
+      .then(r => r && r.json())
+      .then(data => { if (data && data.dates) setUnloggedDates(new Set(data.dates)) })
       .catch(() => {})
   }
 
@@ -78,6 +83,11 @@ export function AppProvider({ children }) {
       .then(r => r && r.json())
       .then(data => { if (data?.dates) setPendingResultDates(data.dates) })
       .catch(() => {})
+
+    getUnloggedSessions()
+      .then(r => r && r.json())
+      .then(data => { if (data && data.dates) setUnloggedDates(new Set(data.dates)) })
+      .catch(() => {})
   }, [])
 
   const value = {
@@ -94,6 +104,7 @@ export function AppProvider({ children }) {
     prDates,
     prSource,
     pendingResultDates,
+    unloggedDates,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

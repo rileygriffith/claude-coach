@@ -7,12 +7,13 @@ function formatDate(dateStr) {
 }
 
 export default function UnresolvedBanner({ onOpenSession }) {
-  const { unresolvedDates, pendingResultDates } = useApp()
+  const { unresolvedDates, pendingResultDates, unloggedDates } = useApp()
 
   const unresolved = [...unresolvedDates].sort().reverse()
   const pending = pendingResultDates.filter(d => !unresolvedDates.has(d)).sort().reverse()
+  const unlogged = [...unloggedDates].sort().reverse()
 
-  if (!unresolved.length && !pending.length) return null
+  if (!unresolved.length && !pending.length && !unlogged.length) return null
 
   return (
     <div className="banners">
@@ -26,6 +27,12 @@ export default function UnresolvedBanner({ onOpenSession }) {
         <div key={date} className="pick-workout-banner pick-workout-banner--result">
           How did your workout go on {formatDate(date)}?
           <button className="banner-link" onClick={() => onOpenSession(date)}>Log result ↗</button>
+        </div>
+      ))}
+      {unlogged.map(date => (
+        <div key={date} className="pick-workout-banner pick-workout-banner--unlogged">
+          You have a workout planned for {formatDate(date)} that hasn't been logged yet.
+          <button className="banner-link" onClick={() => onOpenSession(date)}>Log run ↗</button>
         </div>
       ))}
     </div>

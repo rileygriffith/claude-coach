@@ -12,6 +12,7 @@
   --blue:        #60a5fa;
   --green:       #4ade80;
   --orange:      #fb923c;
+  --yellow:      #facc15;
   --red:         #f87171;
   --radius:      12px;
 }
@@ -791,6 +792,11 @@ header {
   border-color: var(--orange);
 }
 
+.cal-cell.unlogged {
+  background: rgba(250, 204, 21, 0.1);
+  border-color: var(--yellow);
+}
+
 .cal-cell.has-run .cal-day-num {
   color: var(--text);
 }
@@ -820,6 +826,12 @@ header {
   background: rgba(96, 165, 250, 0.08);
   border-color: var(--blue);
   color: var(--blue);
+}
+
+.pick-workout-banner--unlogged {
+  background: rgba(250, 204, 21, 0.08);
+  border-color: var(--yellow);
+  color: var(--yellow);
 }
 
 .banner-link {

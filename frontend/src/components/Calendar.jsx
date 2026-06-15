@@ -6,7 +6,7 @@ import { localDateStr } from '../utils'
 export default function Calendar({ onSessionClick }) {
   const {
     runs, unresolvedDates, sessionDates, targetDate, setTargetDate,
-    calendarVersion, setSessionDates, setUnresolvedDates,
+    calendarVersion, setSessionDates, setUnresolvedDates, unloggedDates,
   } = useApp()
 
   const today = new Date()
@@ -59,6 +59,7 @@ export default function Calendar({ onSessionClick }) {
     const isToday = dateStr === todayStr
     const isFutureOrToday = dateStr >= todayStr
     const isUnresolved = unresolvedDates.has(dateStr)
+    const isUnlogged = unloggedDates.has(dateStr)
     const hasSession = sessionDates.has(dateStr)
     const isTarget = dateStr === targetDate
 
@@ -66,6 +67,7 @@ export default function Calendar({ onSessionClick }) {
     if (hasRun) cls += ' has-run'
     if (isToday) cls += ' today'
     if (isUnresolved) cls += ' unresolved'
+    if (isUnlogged) cls += ' unlogged'
     if (hasSession) cls += ' has-session'
     if (isFutureOrToday && !hasSession) cls += ' future-selectable'
     if (isTarget) cls += ' target-date'

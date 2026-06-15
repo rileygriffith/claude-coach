@@ -920,6 +920,16 @@ app.get('/api/pending-results', (_req, res) => {
   res.json({ dates: pending });
 });
 
+// ── Unlogged sessions (workout planned but no run logged yet) ──────────────────
+
+app.get('/api/unlogged-sessions', (_req, res) => {
+  const sessions = db.prepare('SELECT date FROM workout_sessions').all();
+  const unlogged = sessions
+    .filter(s => !db.prepare("SELECT id FROM runs WHERE date LIKE ? LIMIT 1").get(`${s.date}%`))
+    .map(s => s.date);
+  res.json({ dates: unlogged });
+});
+
 // SPA fallback — must be after all API routes
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
