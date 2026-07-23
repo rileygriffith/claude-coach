@@ -95,7 +95,7 @@ export default function GenerateModal({ onClose }) {
                 <div className="generate-preview-meta">
                   <div className="generate-preview-row">
                     <span className="generate-preview-label">Model</span>
-                    <span>claude-sonnet-4-6</span>
+                    <span>claude-sonnet-5</span>
                   </div>
                   <div className="generate-preview-row">
                     <span className="generate-preview-label">Input tokens</span>
