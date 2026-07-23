@@ -410,7 +410,7 @@ app.post('/api/onboarding/anthropic', async (req, res) => {
   try {
     // Lightweight validation — count tokens on a tiny message
     const client = new Anthropic({ apiKey: key });
-    await client.messages.countTokens({ model: 'claude-sonnet-4-6', messages: [{ role: 'user', content: 'hi' }] });
+    await client.messages.countTokens({ model: 'claude-sonnet-5', messages: [{ role: 'user', content: 'hi' }] });
     setSetting('anthropic_api_key', key);
     res.json({ ok: true });
   } catch (err) {
@@ -472,8 +472,6 @@ function buildRunSummary(runs, sessionMap = {}) {
     return (
       `- ${date}: ${distMi}mi, pace ${pace}` +
       `, HR ${r.average_heartrate ? Math.round(r.average_heartrate) + ' bpm' : 'N/A'}` +
-      `, cadence ${r.average_cadence ? Math.round(r.average_cadence) + ' spm' : 'N/A'}` +
-      `, power ${r.average_watts ? Math.round(r.average_watts) + 'W' : 'N/A'}` +
       `, elevation gain ${Math.round(r.total_elevation_gain || 0)}ft` +
       `, elapsed ${Math.floor(r.elapsed_time / 60)}m${r.elapsed_time % 60}s` +
       (entry ? `, workout: ${entry.type}${entry.target_pace && entry.target_pace !== 'N/A' ? ` at ${entry.target_pace}` : ''}${resultStr}` : '')
@@ -633,7 +631,7 @@ app.get('/api/activities', (_req, res) => {
 function readRunBody(body) {
   const {
     name, date, distance, elapsed_time,
-    average_heartrate, average_cadence, average_watts,
+    average_heartrate,
     total_elevation_gain, sport_type, workout_type,
   } = body || {};
 
@@ -650,8 +648,6 @@ function readRunBody(body) {
     elapsed_time:         Math.round(Number(elapsed_time)),
     average_speed:        Number(distance) / Number(elapsed_time),
     average_heartrate:    average_heartrate    ? Number(average_heartrate)    : null,
-    average_cadence:      average_cadence      ? Number(average_cadence)      : null,
-    average_watts:        average_watts        ? Number(average_watts)        : null,
     total_elevation_gain: total_elevation_gain ? Number(total_elevation_gain) : 0,
     sport_type:           sport_type || 'Run',
     workout_type:         workout_type || null,
@@ -664,11 +660,11 @@ app.post('/api/runs', (req, res) => {
     const result = db.prepare(`
       INSERT INTO runs
         (name, date, distance, elapsed_time, average_speed,
-         average_heartrate, average_cadence, average_watts, total_elevation_gain, sport_type, workout_type)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         average_heartrate, total_elevation_gain, sport_type, workout_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       r.name, r.date, r.distance, r.elapsed_time, r.average_speed,
-      r.average_heartrate, r.average_cadence, r.average_watts, r.total_elevation_gain, r.sport_type, r.workout_type
+      r.average_heartrate, r.total_elevation_gain, r.sport_type, r.workout_type
     );
     computePRs();
     res.json({ ok: true, id: result.lastInsertRowid });
@@ -683,11 +679,11 @@ app.put('/api/runs/:id', (req, res) => {
     const result = db.prepare(`
       UPDATE runs SET
         name = ?, date = ?, distance = ?, elapsed_time = ?, average_speed = ?,
-        average_heartrate = ?, average_cadence = ?, average_watts = ?, total_elevation_gain = ?, sport_type = ?, workout_type = ?
+        average_heartrate = ?, total_elevation_gain = ?, sport_type = ?, workout_type = ?
       WHERE id = ?
     `).run(
       r.name, r.date, r.distance, r.elapsed_time, r.average_speed,
-      r.average_heartrate, r.average_cadence, r.average_watts, r.total_elevation_gain, r.sport_type, r.workout_type,
+      r.average_heartrate, r.total_elevation_gain, r.sport_type, r.workout_type,
       req.params.id
     );
     if (result.changes === 0) return res.status(404).json({ error: 'No run with that id' });
@@ -713,7 +709,7 @@ app.post('/api/cost-estimate', async (req, res) => {
     const { units = 'miles', notes = '', date, today, history_days } = req.body || {};
     const promptContent = buildPromptContent(runs, units, notes, date || localDateStr(), today || null, history_days || 60);
     const { input_tokens } = await getAnthropicClient().messages.countTokens({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-5',
       system: COACHING_PROMPT,
       messages: [{ role: 'user', content: promptContent }],
     });
@@ -783,7 +779,7 @@ app.post('/api/generate-workout', async (req, res) => {
     const { units = 'miles', notes = '', date, history_days } = req.body || {};
     const sessionDate = date || localDateStr();
     const message = await getAnthropicClient().messages.create({
-      model:      'claude-sonnet-4-6',
+      model:      'claude-sonnet-5',
       max_tokens: 1024,
       system:     COACHING_PROMPT,
       messages:   [{ role: 'user', content: buildPromptContent(runs, units, notes, sessionDate, null, history_days || 60) }],

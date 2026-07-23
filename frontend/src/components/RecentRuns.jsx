@@ -44,7 +44,7 @@ export default function RecentRuns() {
                 <div>
                   <div className="stat-label">Elev</div>
                   <div className="stat-value">
-                    {run.total_elevation_gain ? Math.round(run.total_elevation_gain) + 'm' : '—'}
+                    {run.total_elevation_gain ? Math.round(run.total_elevation_gain) + 'ft' : '—'}
                   </div>
                 </div>
               </div>

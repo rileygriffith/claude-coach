@@ -29,8 +29,6 @@ export default function SessionModal({ date: initialDate, onClose }) {
   const [minutes, setMinutes] = useState('')
   const [seconds, setSeconds] = useState('')
   const [heartrate, setHeartrate] = useState('')
-  const [cadence, setCadence] = useState('')
-  const [watts, setWatts] = useState('')
   const [elevation, setElevation] = useState('')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState(null)
@@ -71,8 +69,6 @@ export default function SessionModal({ date: initialDate, onClose }) {
     setMinutes(loggedRun ? Math.floor((elapsed % 3600) / 60) || '' : '')
     setSeconds(loggedRun ? (elapsed % 60) || '' : '')
     setHeartrate(loggedRun?.average_heartrate || '')
-    setCadence(loggedRun?.average_cadence || '')
-    setWatts(loggedRun?.average_watts || '')
     setElevation(loggedRun?.total_elevation_gain || '')
     setFormError(null)
   }, [loggedRun?.id])
@@ -164,8 +160,6 @@ export default function SessionModal({ date: initialDate, onClose }) {
       distance: meters,
       elapsed_time: totalSeconds,
       average_heartrate: heartrate ? Number(heartrate) : null,
-      average_cadence: cadence ? Number(cadence) : null,
-      average_watts: watts ? Number(watts) : null,
       total_elevation_gain: elevation ? Number(elevation) : 0,
     }
 
@@ -307,19 +301,7 @@ export default function SessionModal({ date: initialDate, onClose }) {
                     value={heartrate} onChange={e => setHeartrate(e.target.value)} />
                 </div>
                 <div className="settings-field">
-                  <label>Avg cadence (spm)</label>
-                  <input className="settings-input" type="number" inputMode="numeric" min="0" placeholder="optional"
-                    value={cadence} onChange={e => setCadence(e.target.value)} />
-                </div>
-              </div>
-              <div className="settings-row">
-                <div className="settings-field">
-                  <label>Avg power (W)</label>
-                  <input className="settings-input" type="number" inputMode="numeric" min="0" placeholder="optional"
-                    value={watts} onChange={e => setWatts(e.target.value)} />
-                </div>
-                <div className="settings-field">
-                  <label>Elevation gain (m)</label>
+                  <label>Elevation gain (ft)</label>
                   <input className="settings-input" type="number" inputMode="numeric" min="0" placeholder="optional"
                     value={elevation} onChange={e => setElevation(e.target.value)} />
                 </div>
